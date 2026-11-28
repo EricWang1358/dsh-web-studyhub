@@ -53,7 +53,7 @@ test('each migrated place hands over with its id (before: a prompt builder and a
   assert.deepEqual(at('book.edit'), ['ui/book/send-to-chat.js']);
   assert.deepEqual(at('path.brief'), ['ui/GenerationPath.jsx']);
   // import.file and job.failed: the dead ends of adding files and of jobs (S3), and the empty home's link (plan item 5); tests/hand-off-deadends.test.mjs has them
-  assert.deepEqual(at('import.file'), ['ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/ImportHub.jsx', 'ui/ImportHub.jsx', 'ui/Ingest.jsx',
+  assert.deepEqual(at('import.file'), ['ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/AudioImport.jsx', 'ui/ImportHub.jsx', 'ui/ImportHub.jsx', 'ui/ImportHub.jsx', 'ui/Ingest.jsx',
     'ui/JsonImport.jsx', 'ui/JsonImport.jsx', 'ui/JsonImport.jsx', 'ui/LargeDocumentCard.jsx']);
   assert.deepEqual(at('job.failed'), ['ui/PdfConvertJob.jsx', 'ui/tasks/CompactJobCard.jsx', 'ui/tasks/RunLine.jsx']);
   assert.deepEqual([...new Set(at('setup.failed'))], [
@@ -61,8 +61,8 @@ test('each migrated place hands over with its id (before: a prompt builder and a
     'ui/MarkerInstall.jsx', 'ui/MarkerSettings.jsx', 'ui/MineruInstallCard.jsx',
   ]);
   assert.deepEqual(at('book.edit'), ['ui/book/send-to-chat.js']);
-  // the page question of the reader's 原始 PDF (#456): a quiet link under the answers, and the way forward on a page without saved text
-  assert.deepEqual(at('reader.page'), ['ui/document-preview/PageAsk.jsx', 'ui/document-preview/PageAsk.jsx']);
+  // the page question of the reader's 原始 PDF (#456) and inline unread-image / skipped-page notices (#1457)
+  assert.deepEqual(at('reader.page'), ['ui/document-preview/PageAsk.jsx', 'ui/document-preview/PageAsk.jsx', 'ui/document-preview/reader/ReadingSections.jsx']);
 });
 
 test('no page names askInChat: the empty home\'s link was the last (plan item 5, S3)', () => {

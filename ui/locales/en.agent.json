@@ -390,6 +390,7 @@
   "页面：这一张幻灯片没有保存的文字（仅含图片或图表）；这条消息没带图、或你看不了图片时，直接告诉我。": "Slide: this slide has no saved text (images or charts only); if this message carries no picture or you cannot read pictures, tell me so directly.",
   "页面：这一张幻灯片没有保存的文字（仅含图片或图表）；没有截图、或你看不了图片时，直接告诉我。": "Slide: this slide has no saved text (images or charts only); if there is no screenshot or you cannot read pictures, tell me so directly.",
   "截断：这一张幻灯片的文字较长，只附了前 {0} 字（共 {1} 字）。": "Cut: this slide is long, so only the first {0} of {1} characters are attached.",
+  "截断：这一张幻灯片的文字较长，只附了前 {0} 字（共 {1} 字）。#one:1": "Cut: this slide is long, so only the first {0} of {1} character is attached.",
   "做法：先用一两句话说这一张幻灯片讲什么，再结合图里的内容回答我的问题；资料里没有的内容要说明是资料以外的。": "How: first say in a sentence or two what this slide is about, then answer my question using its visuals; mark anything not in the material.",
   "这一张保存的文字": "Saved text of the slide",
   "页面图片：这一页的截图已存到工作区（路径见下方「页码截图路径」data 围栏），请直接查看该图片文件来读取图、表和公式，不要只靠提取的文字。": "Page image: a screenshot of this page is saved in the workspace (path in the “Page image path” data fence below); inspect that image file directly for figures, tables and formulas rather than relying only on the extracted text.",

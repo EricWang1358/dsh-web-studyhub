@@ -184,7 +184,6 @@
   "已识别「{0}」共 {1} 道题，点下方按钮检查并建议归类。#one:1": "Detected “{0}” with {1} question. Click below to check and suggest filing.",
   "已识别 {0} 道题，点下方按钮检查并建议归类。": "Detected {0} questions. Click below to check and suggest filing.",
   "已识别 {0} 道题，点下方按钮检查并建议归类。#one": "Detected {0} question. Click below to check and suggest filing.",
-  "{0} 等 {1} 处": "{0} and {1} in total",
   "第 {0} 张仅含图片或没有文字已跳过": "slide {0} had images only or no text and was skipped",
   "第 {0} 页仅含图片或没有文字已跳过": "page {0} had images only or no text and was skipped",
   "第 {0} 张含未识别图片或图表，可在阅读器发给主会话或 agy CLI": "slide {0} has unread images or charts; open in Reader to send to the main chat or agy CLI",
