@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPreview } from '../scripts/build.mjs';
-import { createPreviewServer } from '../scripts/preview-server.mjs';
+import { createPreviewServer, previewCall } from '../scripts/preview-server.mjs';
 import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
@@ -13,6 +13,7 @@ import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-
 import { revealNavRow } from '../scripts/qa/nav-reveal.mjs';
 import { StudyService } from '../lib/service.js';
 import { sampleAction } from '../lib/sample-library.js';
+import { openSourcesTools } from './helpers/sources-tools.mjs';
 
 /* #1694: 资料 with the sample course's two materials. By default only 课程范围 and the search box stand over the list (two rows of controls), so the first
    material is on the first screen of a narrow pane. Type, category, AI 智能分类, grouping, sort, 只看待巩固 and 整理课程归属 are in 「筛选与分组」, which
@@ -149,6 +150,39 @@ test('资料 keeps filters, grouping and the organizer in 「筛选与分组」'
       assert.deepEqual(errors, [], `${where}: no errors`);
       await context.close();
     }
+
+    // 撤销 after 归档所选 gives the keyboard focus back to the organizer it was pressed in; put away by then, to the button that opens it again.
+    // (A third material keeps the toolbar on the page while the two others are in the archive.)
+    await previewCall(server, 'source.add', { title: '第三份资料', text: '观察者模式让对象在状态变化时通知订阅者。', course: '示例课程 · 设计模式' });
+    const { page, errors, context } = await openPage(browser, { server }, { lang: 'zh', theme: 'light', width: 1440, height: 900 });
+    await page.goto(server.url);
+    await page.locator('aside, nav').first().waitFor({ timeout: 30000 });
+    await (await revealNavRow(page, 'sources')).dispatchEvent('click');
+    await until(async () => await page.locator('.source-doc').count() === 3, 'three materials');
+    const toggle = page.locator('.sources-page [data-tour="sources-tools"]');
+    const focused = selector => page.evaluate(wanted => !!document.activeElement?.matches(wanted), selector);
+    const archiveTwo = async () => {
+      await openSourcesTools(page);
+      const organizer = page.locator('.sources-page details.source-organize');
+      if (await organizer.getAttribute('open') === null) await organizer.locator('summary').click();
+      for (const at of [0, 1]) await page.locator('.source-doc__check').nth(at).check();
+      await page.locator('[data-archive-selected]').click();
+      await until(async () => await page.locator('.source-doc').count() === 1, 'two are archived');
+    };
+    const undo = async () => {
+      await page.getByRole('button', { name: '撤销', exact: true }).press('Enter');
+      await until(async () => await page.locator('.source-doc').count() === 3, '撤销 brings both back');
+    };
+    await archiveTwo();
+    await undo();
+    await until(() => focused('.source-organize > summary'), 'the focus is on the organizer the learner was working in');
+    await archiveTwo();
+    await toggle.click();
+    await until(async () => await page.locator('.source-organize').count() === 0, 'the organizer is put away');
+    await undo();
+    await until(() => focused('[data-tour="sources-tools"]'), 'with the organizer put away, the focus is on 筛选与分组');
+    assert.deepEqual(errors, [], 'focus: no errors');
+    await context.close();
   } finally {
     await browser.close();
     await server.close();

@@ -914,7 +914,8 @@ export default function Sources({ data, setModal, sourceForm, openAgent, onGener
   // One document (its row) or the checked ones (整理 panel) go through the same notice (ui/archive-entries.js); several have no single dialog, so permanent delete stays per document.
   const offerArchived = items => offerDocumentsArchived({ toast, items, onRemove: setRemoving,
     restore: async () => { await call('source.archive', { sourceIds: idsOfDocuments(items), archived: false }); Promise.resolve(refresh?.()).catch(() => {}); return true; },
-    focus: items.length === 1 ? rowMenu(items[0].key) : () => document.querySelector('.source-organize > summary, [data-tour="sources-tools"]') });
+    // Several: the organizer they were ticked in; put away by then, 「筛选与分组」. (Two queries: one selector list answers with whichever comes first on the page.)
+    focus: items.length === 1 ? rowMenu(items[0].key) : () => document.querySelector('.source-organize > summary') || document.querySelector('[data-tour="sources-tools"]') });
   const closeRemoving = () => {
     const was = removing;
     setRemoving(null);
