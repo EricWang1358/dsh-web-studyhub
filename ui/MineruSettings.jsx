@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useState } from 'react';
 import { ui, uiFormat, uiMessage, errorMessage } from './i18n.js';
 import { useInjectCss } from './shared.js';
-import { Badge, Button, Field, Hint, Icon, InlineMessage, RadioCard, RadioCardGroup, SecretKeyForm, SettingsSection, TextInput, useToast } from './components/index.js';
+import { Badge, Button, Field, Hint, Icon, InlineMessage, RadioCard, SecretKeyForm, SettingsSection, TextInput, useToast } from './components/index.js';
 import MineruInstallCard from './MineruInstallCard.jsx';
 import { useMineruState } from './use-mineru.js';
 import { useStudy } from './study-context.jsx';
@@ -71,7 +71,7 @@ export default function MineruSettings({ initialLocal = null, initialPlan = null
   };
 
   const saveBaseUrl = async event => {
-    event.preventDefault();
+    event?.preventDefault?.();
     if (typeof call !== 'function') return;
     setSavingUrl(true); setError('');
     try {
@@ -84,7 +84,7 @@ export default function MineruSettings({ initialLocal = null, initialPlan = null
     }
   };
 
-  const withdrawAck = async () => {
+  const resetAck = async () => {
     if (typeof call !== 'function') return;
     setSavingAck(true); setError('');
     try {
@@ -104,16 +104,17 @@ export default function MineruSettings({ initialLocal = null, initialPlan = null
   return (
     <SettingsSection className="mineru-settings" tour="settings-mineru" title={ui('PDF 转换（MinerU）')}
       lead={ui('把 PDF 转成带页码的文字：支持扫描件、公式、表格和中文。默认在本机解析、不上传；也可以改用云端或兼容的第三方接口。')}>
-      <RadioCardGroup legend={ui('解析方式')} disabled={savingMode}>
-        <RadioCard name={`${modeGroup}-mode`} value="local" checked={mode === 'local'} onSelect={selectMode}
+      <div role="radiogroup" aria-label={ui('解析方式')} className="mineru-mode-group">
+        <span className="mineru-mode-group__label">{ui('解析方式')}</span>
+        <RadioCard name={`${modeGroup}-mode`} value="local" checked={mode === 'local'} disabled={savingMode} onSelect={selectMode}
           title={ui('本机（默认）')}
           badges={<Badge size="sm" tone="success">{ui('不上传')}</Badge>}
           hint={ui('在这台电脑上解析，不上传任何内容')} />
-        <RadioCard name={`${modeGroup}-mode`} value="cloud" checked={mode === 'cloud'} onSelect={selectMode}
+        <RadioCard name={`${modeGroup}-mode`} value="cloud" checked={mode === 'cloud'} disabled={savingMode} onSelect={selectMode}
           title={ui('云端（会把文件上传）')}
           badges={settings?.token?.set ? <Badge size="sm" tone="info">{uiFormat('已保存 {0}', [settings.token.hint])}</Badge> : <Badge size="sm">{ui('可选')}</Badge>}
           hint={ui('使用 MinerU 官方或兼容的第三方接口，免本机下载大模型')} />
-      </RadioCardGroup>
+      </div>
 
       {error && <InlineMessage tone="error">{error}</InlineMessage>}
 
@@ -129,10 +130,10 @@ export default function MineruSettings({ initialLocal = null, initialPlan = null
             <Field label={ui('接口地址（baseUrl）')} htmlFor={baseUrlId}
               hint={ui('留空使用 MinerU 官方地址（https://mineru.net/api/v4）；也可填写兼容 MinerU API 的第三方 http:// 或 https:// 地址。')}>
               <div className="mineru-cloud__url-row">
-                <TextInput id={baseUrlId} type="url" value={baseUrlInput} disabled={savingUrl || !call}
+                <TextInput id={baseUrlId} className="mineru-cloud__url-input" type="url" value={baseUrlInput} disabled={savingUrl || !call}
                   placeholder={settings?.defaultBaseUrl || DEFAULT_BASE_URL}
                   onChange={event => { setBaseUrlInput(event.target.value); if (error) setError(''); }} />
-                <Button type="submit" variant="secondary" size="sm" busy={savingUrl} disabled={!call || !urlDirty}>
+                <Button type="button" variant="secondary" size="sm" busy={savingUrl} disabled={!call || !urlDirty} onClick={saveBaseUrl}>
                   {ui('保存地址')}
                 </Button>
               </div>
@@ -156,7 +157,7 @@ export default function MineruSettings({ initialLocal = null, initialPlan = null
                   <Icon className="sh-icon--inline" name="success" />
                   {uiFormat('已确认上传至 {0}。', [endpoint])}
                 </p>
-                <Button variant="quiet" size="sm" busy={savingAck} disabled={!call} onClick={withdrawAck}>
+                <Button variant="quiet" size="sm" busy={savingAck} disabled={!call} onClick={resetAck}>
                   {ui('撤回上传确认')}
                 </Button>
               </>

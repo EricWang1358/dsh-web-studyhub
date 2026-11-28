@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { MINERU, MineruError, createMineruClient, endpointHost, mapMineruFailure, normalizeBaseUrl } from '../lib/mineru-api.js';
+import { MINERU, MineruError, createMineruClient, endpointHost, mapMineruFailure, normalizeBaseUrl } from '../lib/contexts/audio/mineru-api.js';
 
 /* The MinerU cloud / third-party compatible API client: URL normalization & scheme safety, Authorization header hygiene,
    custom baseUrl + Key support, upload/poll/download flow, and error mapping without ever leaking the Key. */

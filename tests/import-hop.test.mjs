@@ -124,11 +124,15 @@ test('the converter block is a closed fold, not two cards; the tool is chosen in
   assert.match(html, /type="file"[^>]*accept="\.pdf,application\/pdf"/);
 });
 
-test('the panel offers local conversion only: no cloud route, no second choice of how', () => {
+test('the panel defaults to local conversion (zero upload) and offers optional cloud route clearly labelled (#1765)', () => {
   setUiLanguage('zh');
-  const html = renderToStaticMarkup(h(PdfConversion, { file: { name: 'Book.pdf', size: 12e6 }, call: async () => ({}), 
+  const html = renderToStaticMarkup(h(PdfConversion, { file: { name: 'Book.pdf', size: 12e6 }, call: async () => ({}),
     initialLocal: { state: 'ready', tier: 'basic', estimates: { basic: 1.6 } }, initialPlan: { name: 'Book.pdf', pages: 450, bytes: 12e6, windows: [{ index: 1, startPage: 1, endPage: 50, pages: 50 }] } }));
-  assert.doesNotMatch(html, /暂不可用|云端|用哪种方式解析|name="mineru-route"|type="checkbox"/);
+  assert.doesNotMatch(html, /暂不可用|用哪种方式解析|name="mineru-route"|type="checkbox"/);
+  assert.match(html, /data-route="local"/, 'defaults to local route');
+  assert.match(html, /本机（默认）/);
+  assert.match(html, /云端（会把文件上传）/, 'optional cloud route explicitly warns that files will be uploaded');
+  assert.match(html, /本地解析：不会上传任何内容/);
   assert.match(html, /开始本地解析/);
   assert.match(html, /约 12 分钟（估算：每页约 1\.6 秒/, 'the estimate stays: it is the cost the learner is about to accept');
   assert.doesNotMatch(html, /basic 档/, 'no tier jargon on the main path');

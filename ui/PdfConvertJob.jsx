@@ -306,7 +306,7 @@ const STATUS_TONE = { running: 'info', complete: 'success', failed: 'error', can
 const STAGE_TEXT = { start: () => ui('启动'), 'start-service': () => ui('启动本机服务'), queued: () => ui('排队'), split: () => ui('切分 PDF'), upload: () => ui('上传'), parse: () => ui('云端解析'), local: () => ui('本地解析'),
   download: () => ui('下载结果'), merge: () => ui('合并各段'), save: () => ui('保存为资料') };
 
-function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry, onSwitchLocal, onRemove, onOpenSettings, onRestored }) {
+function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry, onRemove, onOpenSettings, onRestored }) {
   const status = row.status, finished = !!row.finishedAt && status !== 'running' && status !== 'interrupted';
   const route = row.converter === 'marker' ? 'Marker · ' + ui('本地') : row.route === 'local' ? uiFormat('本地 · {0}', [row.tier || 'mineru']) : capital(ui('云端'));
   const size = Number.isFinite(row.bytes) ? formatBytes(row.bytes) : '', pages = Number.isFinite(row.pages) ? (row.pages === 1 ? ui('1 页') : uiFormat('{0} 页', [row.pages])) : '';
@@ -358,7 +358,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
             <Button variant="secondary" size="sm" className="pdf-history__action" busy={busy} lock={!!working && !busy} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
           </Tooltip>}
           {row.canRetry && row.route === 'cloud' && <Tooltip layer content={ui('改用本机 MinerU 解析这份 PDF，不再上传到云端。')}>
-            <Button variant={row.failure?.code === 'page-too-large' ? 'secondary' : 'quiet'} size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('改用本机解析「{0}」', [row.filename])} onClick={() => onSwitchLocal(row)}>{ui('改用本机')}</Button>
+            <Button variant={row.failure?.code === 'page-too-large' ? 'secondary' : 'quiet'} size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('改用本机解析「{0}」', [row.filename])} onClick={() => onRetry(row, 'local')}>{ui('改用本机')}</Button>
           </Tooltip>}
           {status !== 'running' && <Button variant="link" size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>
@@ -427,13 +427,9 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
     kept: count => uiFormat('{0} 条记录又在运行，没有删除', [count]),
     failed: reason => uiFormat('没能清空解析记录，已放回原处：{0}', [reason]),
     focus: () => document.querySelector('.pdf-history__bar button') }); };
-  const retry = row => work(row.id, async () => {
+  const retry = (row, route) => work(row.id, async () => {
     // A stopped local service is started by the run itself.
-    await send('mineru.retry', { jobId: row.id });
-    await load(); onChanged?.();
-  });
-  const switchLocal = row => work(row.id, async () => {
-    await send('mineru.retry', { jobId: row.id, route: 'local' });
+    await send('mineru.retry', route ? { jobId: row.id, route } : { jobId: row.id });
     await load(); onChanged?.();
   });
   const showJob = row => {
@@ -461,7 +457,7 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
       <h5 className="pdf-history__day">{dayHeading(group)}</h5>
       <ul className="pdf-history__list">
         {group.rows.map(row => <HistoryRow key={row.id} row={row} now={clock} working={working} onOpen={target => onOpenSources?.(target.document?.sourceIds || [])}
-          onShowJob={showJob} onEditHeld={setEditing} onRetry={retry} onSwitchLocal={switchLocal} onRemove={remove} onOpenSettings={onOpenSettings} onRestored={() => { void load(); onChanged?.(); }} />)}
+          onShowJob={showJob} onEditHeld={setEditing} onRetry={retry} onRemove={remove} onOpenSettings={onOpenSettings} onRestored={() => { void load(); onChanged?.(); }} />)}
       </ul>
     </div>)}
     {more > 0 && <Button variant="quiet" size="sm" onClick={() => setShown(current => current + HISTORY_PAGE)}>{uiFormat('显示更多（还有 {0} 条）', [more])}</Button>}

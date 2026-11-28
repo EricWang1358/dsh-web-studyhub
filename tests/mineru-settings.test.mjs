@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { MINERU } from '../lib/mineru-api.js';
-import { hasMineruToken, mineruSettingsPath, publicMineruSettings, readMineruSettings, saveMineruSettings } from '../lib/mineru-settings.js';
+import { MINERU } from '../lib/contexts/audio/mineru-api.js';
+import { hasMineruToken, mineruSettingsPath, publicMineruSettings, readMineruSettings, saveMineruSettings } from '../lib/contexts/audio/mineru-settings.js';
 
 /* MinerU cloud/local settings: default is always local (no upload), custom baseUrl + Key support,
    secret masking, upload acknowledgement tied to endpoint, and 3.5.4 / future-version compatibility [C38]. */
