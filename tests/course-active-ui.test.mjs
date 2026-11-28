@@ -18,6 +18,7 @@ const compiled = await build({ stdin: { contents: `
   export { CourseList } from './ui/CourseSettings.jsx';
   export { ForecastPanel } from './ui/charts/DashboardCharts.jsx';
   export { default as StudyMap } from './ui/StudyMap.jsx';
+  export { useCourseMastery } from './ui/study-map/useCourseMastery.js';
   export { default as CourseField } from './ui/CourseField.jsx';
   export { rankCourses } from './ui/course-names.js';
   export { setUiLanguage } from './ui/i18n.js';`, resolveDir: process.cwd() },
@@ -25,7 +26,7 @@ bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react',
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(require, module, module.exports);
 const { PageScope, decksInCourse, courseParked, scopeArgs, ActiveSwitch, ParkedChip, CourseActiveProvider, activeNotice, liveSubCourses, parkedWithin,
-  CourseList, ForecastPanel, StudyMap, CourseField, rankCourses, setUiLanguage } = module.exports;
+  CourseList, ForecastPanel, StudyMap, useCourseMastery, CourseField, rankCourses, setUiLanguage } = module.exports;
 const h = React.createElement;
 const han = /[㐀-鿿]/;
 const render = (element, language = 'zh') => { setUiLanguage(language); try { return renderToStaticMarkup(element); } finally { setUiLanguage('zh'); } };
@@ -224,6 +225,46 @@ test('pickers rank parked courses last, and the filing field shows them dimmed',
   assert.match(html, /course-field__pick[^>]*is-parked|is-parked[^>]*course-field__pick/);
   const all = render(h(CourseField, { courses: [...courses, ...Array.from({ length: 6 }, (_, i) => ({ name: `Extra ${i}`, count: 1 }))], value: '', onChange: noop, initialOpen: true }));
   assert.match(text(all), /未激活的课程 \(3\)/);
+});
+
+test('home course mastery excludes paused sub-courses, still measures a focused paused course, and handles null focus', () => {
+  const probe = (data) => {
+    let out;
+    function Probe() { out = useCourseMastery(data, data.progress); return null; }
+    renderToStaticMarkup(h(Probe));
+    return out;
+  };
+  const focusCourses = [
+    { name: 'OS', count: 1, active: true },
+    { name: 'OS / Old', count: 1, active: false, explicit: false },
+  ];
+  const decks = [
+    deck('d-os', 'OS'),
+    deck('d-old', 'OS / Old', { inactive: true }),
+    deck('d-slain', 'OS', { systemKind: 'slain' }),
+  ];
+  const prog = {
+    'd-os': { counts: { mastered: 1, familiar: 0, learning: 0, weak: 0, new: 3 }, total: 4, mastery: 25, due: 1, status: 'active', topics: [] },
+    'd-old': { counts: { mastered: 6, familiar: 0, learning: 0, weak: 0, new: 0 }, total: 6, mastery: 100, due: 0, status: 'mastered', topics: [] },
+    'd-slain': { counts: { mastered: 2, familiar: 0, learning: 0, weak: 0, new: 0 }, total: 2, mastery: 100, due: 0, status: 'mastered', topics: [] },
+  };
+  // Active OS: excludes paused sub-course OS / Old and systemKind deck -> 25% over 4 cards (not 70% over 10 cards).
+  const activeRes = probe({ decks, progress: prog, focus: { mode: 'class', course: 'OS', courses: focusCourses, fresh: [] } });
+  assert.equal(activeRes.course.value, 25);
+  assert.equal(activeRes.course.cards, 4);
+  const activeHtml = library({ decks, progress: prog, focus: { mode: 'class', course: 'OS', courses: focusCourses, fresh: [] } });
+  assert.match(activeHtml, /class="desk-mastery-value"[^>]*>[^<]*25[^<]*<small>%<\/small>/);
+
+  // Focused paused sub-course OS / Old: deliberately selected -> still measured (100% over 6 cards).
+  const pausedRes = probe({ decks, progress: prog, focus: { mode: 'class', course: 'OS / Old', courses: focusCourses, fresh: [] } });
+  assert.equal(pausedRes.course.value, 100);
+  assert.equal(pausedRes.course.cards, 6);
+  const pausedHtml = library({ decks, progress: prog, focus: { mode: 'class', course: 'OS / Old', courses: focusCourses, fresh: [] } });
+  assert.match(pausedHtml, /class="desk-mastery-value"[^>]*>[^<]*100[^<]*<small>%<\/small>/);
+
+  // Null focus -> course mastery is null (never leaks all decks).
+  const nullRes = probe({ decks, progress: prog, focus: { mode: 'class', course: null, courses: focusCourses, fresh: [] } });
+  assert.equal(nullRes.course, null);
 });
 
 test('the locale carries every new string, the styles use tokens only, the contexts stay quiet about it', () => {
