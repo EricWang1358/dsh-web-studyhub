@@ -199,9 +199,12 @@ async function resolveLibraryRoot({ config, env, defaultRoot, fallbackRoot, conf
 }
 
 /** Copy the corrupt file aside. A copy that fails stops the caller: the original is the only record of the learner's folder and model settings. */
-async function backupCorruptConfig(configPath) {
-  const backupPath = `${configPath}.corrupt-${Date.now()}.bak`;
+async function backupCorruptConfig(configPath, stamps) {
+  // Two backups in one millisecond (a forced save, then a recover) must not share a name: COPYFILE_EXCL would refuse the second.
+  const stamp = Math.max(Date.now(), stamps.last + 1);
+  const backupPath = `${configPath}.corrupt-${stamp}.bak`;
   try { await copyFile(configPath, backupPath, constants.COPYFILE_EXCL); } catch (error) { throw backupFailedError(configPath, error); }
+  stamps.last = stamp;
   return backupPath;
 }
 
@@ -209,12 +212,12 @@ async function backupCorruptConfig(configPath) {
  * Back up a corrupted desktop.json and reset it to clean defaults. The file is read again first: one that reads fine (or is absent) is left
  * alone, a read error or newer schema version stops here, and a backup that fails stops the reset.
  */
-async function recoverStoredConfig(configPath) {
+async function recoverStoredConfig(configPath, stamps) {
   const found = await inspectStoredConfig(configPath);
   if (found.kind === 'unreadable') throw unreadableConfigError(configPath, found.error);
   if (found.kind === 'unsupported-version') throw unsupportedVersionConfigError(configPath, found.version);
   if (found.kind !== 'corrupt') return { recovered: false, reason: found.kind === 'ok' ? 'readable' : 'missing', backupPath: '' };
-  const backupPath = await backupCorruptConfig(configPath);
+  const backupPath = await backupCorruptConfig(configPath, stamps);
   const clean = defaultDesktopConfig();
   await atomicWriteJson(configPath, clean);
   return { recovered: true, backupPath, config: clean };
@@ -238,6 +241,7 @@ export function createConfigStore({
   const defaultRoot = resolve(documentsDir, 'StudyHub');
   const fallbackRoot = join(studyHome, 'library');
 
+  const backupStamps = { last: 0 };
   let writeQueue = Promise.resolve();
   const serializeWrite = (work) => {
     const next = writeQueue.then(work);
@@ -256,7 +260,7 @@ export function createConfigStore({
       try { await readStoredConfig(configPath, { strictIo: true }); } catch (error) {
         // `force` resets a corrupt file (after its backup); a file that is only unreadable right now is never overwritten.
         if (!opts?.force || error?.code !== 'config-corrupt') throw error;
-        await backupCorruptConfig(configPath);
+        await backupCorruptConfig(configPath, backupStamps);
       }
       const normalized = normalizeDesktopConfig(nextConfig);
       await atomicWriteJson(configPath, normalized);
@@ -265,7 +269,7 @@ export function createConfigStore({
   }
 
   /** Explicitly back up a corrupted desktop.json and reset it to clean defaults (#1436 Item 8); see recoverStoredConfig. */
-  const recover = () => serializeWrite(() => recoverStoredConfig(configPath));
+  const recover = () => serializeWrite(() => recoverStoredConfig(configPath, backupStamps));
 
   function saveLibraryRoot(rawRoot) {
     return serializeWrite(async () => {

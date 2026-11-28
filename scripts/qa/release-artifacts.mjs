@@ -3,19 +3,15 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import { PACKED_CLIENT_BUNDLE_RE, assertUiBuildMarker, verifyPackedWorkbenchBundle } from '../ui-build-marker.mjs';
+
+export { assertUiBuildMarker, verifyPackedWorkbenchBundle };
 
 // Check the actual archives, including documentation links and DSH's locale entry points.
 const run = promisify(execFile);
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
-const target = resolve(root, process.argv.find(arg => arg.startsWith('--outdir='))?.slice(9) || `output/release-${manifest.version}`);
-const receipt = JSON.parse(await readFile(join(target, 'artifacts.json'), 'utf8'));
-assert.equal(receipt.version, manifest.version);
-assert.equal(receipt.archives.length, 8);
-const checksums = new Map((await readFile(join(target, `SHA256SUMS-${manifest.version}.txt`), 'utf8')).trim().split(/\r?\n/)
-  .map(line => { const [hash, filename] = line.split(/\s+/); return [filename, hash]; }));
 const UI_ONLY_DEPENDENCIES = [
   '@base-ui/react',
   '@codemirror/lang-markdown',
@@ -24,58 +20,75 @@ const UI_ONLY_DEPENDENCIES = [
   'katex',
   'markdown-it-texmath',
 ];
-const checked = [];
-for (const artifact of [...receipt.archives, receipt.setup, receipt.setupZh]) {
-  assert.equal(artifact.filename, artifact.filename.replaceAll(/[/\\]/g, ''), 'artifact names stay in the release directory');
-  const bytes = await readFile(join(target, artifact.filename));
-  const hash = createHash('sha256').update(bytes).digest('hex');
-  assert.equal(hash, artifact.sha256, artifact.filename);
-  assert.equal(hash, checksums.get(artifact.filename), artifact.filename);
-  if (!artifact.filename.endsWith('.tgz')) continue;
-  const archive = join(target, artifact.filename);
-  const { stdout } = await run('tar', ['-tzf', archive], { windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
-  const files = stdout.trim().split(/\r?\n/);
-  assert.ok(files.every(file => file.startsWith('package/') && !file.split('/').includes('..')), 'package entries stay in their directory');
-  const unpacked = await mkdtemp(join(target, 'verify-'));
-  try {
-    await run('tar', ['-xzf', archive, '-C', unpacked], { windowsHide: true });
-    const packageRoot = join(unpacked, 'package');
-    const packed = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
-    assert.equal(packed.name, artifact.name);
-    assert.equal(packed.version, manifest.version);
-    await access(resolve(packageRoot, packed.main));
-    if (packed.name === '@ericwang1358/dsh-daily-flashcard') {
-      assert.ok(files.includes('package/lib/client.js'), 'workbench archive includes built UI client bundle');
-      assert.deepEqual(UI_ONLY_DEPENDENCIES.filter(dep => dep in (packed.dependencies || {})), [],
-        `${packed.name} omits UI-only dependencies from runtime dependencies`);
-    } else if (packed.name.startsWith('@ericwang1358/dsh-study-')) {
-      assert.equal(files.some(file => /^package\/lib\/client(?:\.[A-Za-z0-9._-]+)?\.js$/.test(file)), false,
-        `${packed.name} omits built UI client bundles`);
-      assert.deepEqual(UI_ONLY_DEPENDENCIES.filter(dep => dep in (packed.dependencies || {})), [],
-        `${packed.name} omits UI-only dependencies`);
-    }
-    if (packed.name !== '@ericwang1358/studyhub-retrieval') {
-      for (const language of ['en', 'zh']) {
-        const localePath = packed.exports['./locale/*'].replace('*', `${language}.json`);
-        const locale = JSON.parse(await readFile(resolve(packageRoot, localePath), 'utf8'));
-        assert.ok(locale.meta.title.startsWith('StudyHub'));
+
+export async function verifyReleaseArtifacts({ outdir, expectedVersion } = {}) {
+  const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  const version = expectedVersion || manifest.version;
+  const target = resolve(root, outdir || `output/release-${version}`);
+  const receipt = JSON.parse(await readFile(join(target, 'artifacts.json'), 'utf8'));
+  assert.equal(receipt.version, version);
+  assert.equal(receipt.archives.length, 8);
+  const checksums = new Map((await readFile(join(target, `SHA256SUMS-${version}.txt`), 'utf8')).trim().split(/\r?\n/)
+    .map(line => { const [hash, filename] = line.split(/\s+/); return [filename, hash]; }));
+  const checked = [];
+  for (const artifact of [...receipt.archives, receipt.setup, receipt.setupZh]) {
+    assert.equal(artifact.filename, artifact.filename.replaceAll(/[/\\]/g, ''), 'artifact names stay in the release directory');
+    const bytes = await readFile(join(target, artifact.filename));
+    const hash = createHash('sha256').update(bytes).digest('hex');
+    assert.equal(hash, artifact.sha256, artifact.filename);
+    assert.equal(hash, checksums.get(artifact.filename), artifact.filename);
+    if (!artifact.filename.endsWith('.tgz')) continue;
+    const archive = join(target, artifact.filename);
+    const { stdout } = await run('tar', ['-tzf', archive], { windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
+    const files = stdout.trim().split(/\r?\n/);
+    assert.ok(files.every(file => file.startsWith('package/') && !file.split('/').includes('..')), 'package entries stay in their directory');
+    const unpacked = await mkdtemp(join(target, 'verify-'));
+    try {
+      await run('tar', ['-xzf', archive, '-C', unpacked], { windowsHide: true });
+      const packageRoot = join(unpacked, 'package');
+      const packed = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+      assert.equal(packed.name, artifact.name);
+      assert.equal(packed.version, version);
+      await access(resolve(packageRoot, packed.main));
+      if (packed.name === '@ericwang1358/dsh-daily-flashcard') {
+        await verifyPackedWorkbenchBundle(packageRoot, files, version);
+        assert.deepEqual(UI_ONLY_DEPENDENCIES.filter(dep => dep in (packed.dependencies || {})), [],
+          `${packed.name} omits UI-only dependencies from runtime dependencies`);
+      } else if (packed.name.startsWith('@ericwang1358/dsh-study-')) {
+        assert.equal(files.some(file => PACKED_CLIENT_BUNDLE_RE.test(file)), false,
+          `${packed.name} omits built UI client bundles`);
+        assert.deepEqual(UI_ONLY_DEPENDENCIES.filter(dep => dep in (packed.dependencies || {})), [],
+          `${packed.name} omits UI-only dependencies`);
       }
-      for (const file of files.filter(file => file.endsWith('.md'))) {
-        const source = join(unpacked, file);
-        const prose = (await readFile(source, 'utf8')).replace(/```[\s\S]*?```/g, '');
-        for (const [, link] of prose.matchAll(/\]\(([^)\s]+)\)/g)) {
-          if (/^(?:[a-z]+:|\/\/|#)/i.test(link)) continue;
-          await access(resolve(dirname(source), decodeURIComponent(link.split('#')[0])));
+      if (packed.name !== '@ericwang1358/studyhub-retrieval') {
+        for (const language of ['en', 'zh']) {
+          const localePath = packed.exports['./locale/*'].replace('*', `${language}.json`);
+          const locale = JSON.parse(await readFile(resolve(packageRoot, localePath), 'utf8'));
+          assert.ok(locale.meta.title.startsWith('StudyHub'));
+        }
+        for (const file of files.filter(file => file.endsWith('.md'))) {
+          const source = join(unpacked, file);
+          const prose = (await readFile(source, 'utf8')).replace(/```[\s\S]*?```/g, '');
+          for (const [, link] of prose.matchAll(/\]\(([^)\s]+)\)/g)) {
+            if (/^(?:[a-z]+:|\/\/|#)/i.test(link)) continue;
+            await access(resolve(dirname(source), decodeURIComponent(link.split('#')[0])));
+          }
         }
       }
+      checked.push({ name: packed.name, version: packed.version, files: files.length, sha256: hash });
+    } finally {
+      assert.equal(dirname(resolve(unpacked)), target, 'cleanup stays inside the release directory');
+      await rm(unpacked, { recursive: true, force: true });
     }
-    checked.push({ name: packed.name, version: packed.version, files: files.length, sha256: hash });
-  } finally {
-    assert.equal(dirname(resolve(unpacked)), target, 'cleanup stays inside the release directory');
-    await rm(unpacked, { recursive: true, force: true });
   }
+  assert.equal(checksums.size, 10, 'all eight archives and both setup pages have checksums');
+  const result = { version, archives: checked, setupPages: 2, status: 'passed' };
+  await writeFile(join(target, 'verification.json'), JSON.stringify(result, null, 2) + '\n');
+  return result;
 }
-assert.equal(checksums.size, 10, 'all eight archives and both setup pages have checksums');
-const result = { version: manifest.version, archives: checked, setupPages: 2, status: 'passed' };
-await writeFile(join(target, 'verification.json'), JSON.stringify(result, null, 2) + '\n');
-console.log(JSON.stringify(result, null, 2));
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const outdir = process.argv.find(arg => arg.startsWith('--outdir='))?.slice(9);
+  const result = await verifyReleaseArtifacts({ outdir });
+  console.log(JSON.stringify(result, null, 2));
+}

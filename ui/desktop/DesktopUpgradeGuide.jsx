@@ -2,10 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { errorMessage, ui, uiFormat } from '../i18n.js';
 import { Button, Icon, InlineMessage, ProgressBar } from '../components/index.js';
 import { useInjectCss } from '../shared.js';
+import { isNewerVersion } from '../../lib/semver.js';
 import { hasTauriBridge, installDesktopUpdate } from './ipc.js';
 import css from './desktop.css';
 
 const RELEASES_FALLBACK = 'https://github.com/EricWang1358/dsh-web-studyhub/releases';
+// tauri-plugin-updater's Error::ReleaseNotFound: every endpoint answered without a manifest (a 404 while the release's
+// latest.json is not uploaded yet). Network failures and bad signatures have other messages and stay errors.
+const MANIFEST_NOT_FOUND = /Could not fetch a valid release JSON from the remote/i;
+
+/** The updater cannot see the announced version yet: its manifest is missing, or older than the version the update check found. */
+function manifestPending(outcome, update) {
+  if (outcome?.error !== undefined) {
+    const raw = typeof outcome.error === 'string' ? outcome.error : outcome.error?.message;
+    return MANIFEST_NOT_FOUND.test(String(raw || ''));
+  }
+  return outcome?.receipt?.status === 'up-to-date' && isNewerVersion(update?.latest, update?.current);
+}
 
 function formatByteSize(bytes) {
   const value = Number(bytes);
@@ -50,7 +63,7 @@ function autoUpdateButtonLabel(phase, progress, latest) {
   if (phase === 'working') {
     return progress?.phase === 'installing' ? ui('正在安装并重启…') : ui('正在下载更新…');
   }
-  if (phase === 'error') return ui('重试自动更新');
+  if (phase === 'error' || phase === 'pending') return ui('重试自动更新');
   return latest ? uiFormat('立即下载并更新到 {0}', [latest]) : ui('立即下载并重启更新');
 }
 
@@ -60,7 +73,7 @@ function resolveUpdaterRunner(host) {
   return null;
 }
 
-function AutoUpdateFeedback({ phase, progress, error }) {
+function AutoUpdateFeedback({ phase, progress, error, latest }) {
   if (phase === 'working') {
     const percent = Number.isFinite(progress?.percent) ? Math.max(0, Math.min(100, progress.percent)) : null;
     return (
@@ -73,6 +86,15 @@ function AutoUpdateFeedback({ phase, progress, error }) {
         />
         <p className="desktop-updater__caption">{progressCaption(progress)}</p>
       </div>
+    );
+  }
+  if (phase === 'pending') {
+    return (
+      <InlineMessage tone="info" boxed title={ui('桌面安装包还在上传，几分钟后再试')}>
+        {latest
+          ? uiFormat('GitHub 上暂时取不到 {0} 的桌面更新清单，通常是新版本刚发布、安装包还在上传。几分钟后点「重试自动更新」即可。', [latest])
+          : ui('GitHub 上暂时取不到新版本的桌面更新清单，通常是新版本刚发布、安装包还在上传。几分钟后点「重试自动更新」即可。')}
+      </InlineMessage>
     );
   }
   if (phase === 'up-to-date') {
@@ -168,8 +190,10 @@ export default function DesktopUpgradeGuide({ update, host, onBusyChange }) {
       const receipt = await runInstall((next) => {
         if (next && typeof next === 'object') setProgress(next);
       });
-      setPhase(receipt?.status === 'up-to-date' ? 'up-to-date' : 'idle');
+      if (manifestPending({ receipt }, update)) setPhase('pending');
+      else setPhase(receipt?.status === 'up-to-date' ? 'up-to-date' : 'idle');
     } catch (err) {
+      if (manifestPending({ error: err }, update)) { setPhase('pending'); return; }
       setError(errorMessage(err));
       setPhase('error');
       setManualOpen(true);
@@ -193,7 +217,7 @@ export default function DesktopUpgradeGuide({ update, host, onBusyChange }) {
                 {autoUpdateButtonLabel(phase, progress, update?.latest)}
               </Button>
             </div>
-            <AutoUpdateFeedback phase={phase} progress={progress} error={error} />
+            <AutoUpdateFeedback phase={phase} progress={progress} error={error} latest={update?.latest} />
           </div>
           <details
             className="desktop-updater__manual"

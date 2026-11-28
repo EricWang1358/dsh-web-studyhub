@@ -32,6 +32,28 @@ StudyHub 保存的内容：
 
 如果所有页都读不出文字，就什么也不保存，窗口会提示这可能是扫描件。可以用 MinerU 转换（它能读扫描页；还没装好时，窗口里就有「一键安装」），或先做文字识别（OCR）再导入。
 
+## 想用外部工具转换？
+
+如果不想在本机安装转换引擎，或希望用其他工具先把 PDF 转成 Markdown / 文本再导入，可以参考下面的外部工具链接（均为纯文本地址，请复制后自行在浏览器打开）：
+
+> **隐私与边界说明**：文件上传到第三方属于你与该服务之间的事，本产品不经手、不保存。这里只是外部网页链接：StudyHub 不调用这些页面、不经这些链接上传文件，也不承诺第三方服务的可用性。
+
+- **PaddleOCR 在线解析**：`https://www.paddleocr.ai` — Apache-2.0 · 网页端（免安装） · JSON, Markdown
+- **MinerU 在线解析（网页版）**：`https://mineru.net/OpenSourceTools/Extractor` — MinerU Open Source License (Apache-2.0 with extra conditions) · 网页端（需登录 OpenXLab 账号） · content_list.json, Markdown
+- **Docling**：`https://github.com/docling-project/docling` — MIT · Windows / macOS / Linux · JSON (DoclingDocument), Markdown
+- **Mathpix**：`https://mathpix.com` — Proprietary (commercial service) · 网页端（免安装） · Markdown (.md), LaTeX (.tex)
+
+这份清单来自 `lib/large-documents.js` 里的转换工具目录，与导入页、「创建题组」页和设置页用的是同一份。
+
+### 转换完成后怎么导入
+
+1. **确认导出格式**：解析完成后，下载 JSON 结果文件（或带 `<!-- page: N -->` 页码标记的 Markdown）。支持导入的格式：Markdown（`.md` / `.markdown`）、纯文本（`.txt`）、LaTeX（`.tex`）、HTML（`.html` / `.htm`）、Word（`.docx`）、PowerPoint（`.pptx` / `.ppt`）、带文字层的 PDF（`.pdf`），以及转换工具导出的结构化 JSON（`.json`：PaddleOCR / Docling / MinerU）。MinerU 网页版下载的是 `.zip`：解压后导入名字以 `_content_list.json` 结尾的文件，StudyHub 会按页保存；其中的 `full.md` 没有页码标记，只能当普通 Markdown 导入，不分页。PDF 最多 200 页，提取出的文字最多 600,000 字符。PDF 与文本最大 8 MB，Word / PPT / 转换 JSON 最大 40 MB。
+2. **放到哪里、怎么导入**：打开「资料」页，点击「添加资料」（或在「创建题组」里点击「添加资料」），选好课程后在「文件」标签拖入转换好的文件或点击「选择文件」；纯文本也可切到「粘贴文本」直接保存。如在主会话中使用学习模式，也可先放到工作区的 `studyhub-work/` 或电脑本地目录后让 AI 导入。
+3. **常见失败与排查**：
+   - **公式丢失**：普通转换常把公式丢掉或转成图片。请在外部工具中开启公式转 LaTeX，导出为 `.md` 或 `.tex`（用 `$...$` / `$$...$$` 保留公式），避免只导出纯文本。
+   - **扫描版仍是图片**：若导出的仍是图片型 PDF 或只含图片链接的 Markdown，StudyHub 读不出正文（`.md` 中的独立图片行会被跳过）。请在外部工具中开启 OCR 文字识别后再导出文字或结构化 JSON。
+   - **编码不是 UTF-8**：StudyHub 要求文本与 JSON 文件为 UTF-8 编码；GBK、GB18030 或 UTF-16 会报编码错误或乱码。请用编辑器（如 VS Code 或记事本）选择「另存为 UTF-8」后再重新导入。
+
 ## 用资料出题
 
 1. 打开「创建题组」›「用资料出题」。

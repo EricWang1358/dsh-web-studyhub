@@ -23,6 +23,7 @@ import { CUSTOM_BOOK_LABEL, CUSTOM_BOOK_WHAT, customOffered, markCustomOffered, 
 import { useCustomLink } from './custom-convert-link.js';
 import IndexHint, { useIndexLink } from './IndexHint.jsx';
 import { hintDocOf } from './index-hint.js';
+import { PdfExternalConvertGuide } from './pdf-external-guide-lazy.jsx';
 
 /* The compact card of a PDF conversion, the shared ui/tasks/CompactJobCard: the percent (pages converted over pages in the book, never a
    guess), one status line, a stop, and ONE button for what comes next (continue without redoing finished pieces: a stopped local service is started by
@@ -104,6 +105,7 @@ export function PdfDetail({ job, expandChunks, onChanged }) {
       {job.note && running && <Hint as="small">{uiMessage(job.note)}</Hint>}
       {running && job.local?.halved > 0 && <Hint as="small">{uiFormat('有窗口没有成功，已自动拆成更小的段重试（{0} 次）', [job.local.halved])}</Hint>}
       {(adaptive ? job.chunks?.length > 0 : count > 1 && job.chunks?.length > 1) && job.status !== 'complete' && <ChunkList chunks={job.chunks} index={index} count={count} running={running} expanded={expandChunks} adaptive={adaptive} next={adaptive && running ? job.local?.next : 0} />}
+      {job.status === 'failed' && <PdfExternalConvertGuide />}
     </div>
   );
 }
