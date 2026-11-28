@@ -377,5 +377,5 @@
   "如果在 PowerShell 里运行上面的命令，要在整条命令前加 `&`。": "If you run the command above in PowerShell, put `&` in front of the whole command.",
   "末尾补充：如果消息末尾有「我想：」且后面留空，说明没有额外要求，直接按以上附注执行即可。": "Trailing note: if the message ends with \"What I want:\" left blank, I have no extra notes — proceed directly using the instructions above.",
   "我在用 StudyHub 桌面版学习，这个命令行窗口开在我的学习库目录里。先回复一句你已经准备好，然后等我说要做什么。": "I study with StudyHub Desktop, and this terminal is open in my study library folder. Reply in one line that you are ready, then wait for me to say what to do.",
-  "读写学习库（课程、题组、题目、复习记录）都用下面的 study-cli.mjs 命令；第一次先调用 library.context（不用 --file），看看有哪些课程和题组。": "Read and write the study library (courses, decks, questions, review records) only with the study-cli.mjs command below; start with one call to library.context (no --file) to see the courses and decks."
+  "读写学习库（课程、题组、题目、复习记录）都用下面的 study-cli.mjs 命令；等我说了要做什么、开始读写学习库时，先调用 library.context（不用 --file），看看有哪些课程和题组。": "Read and write the study library (courses, decks, questions, review records) only with the study-cli.mjs command below; once I say what to do and you start on the library, begin with one call to library.context (no --file) to see the courses and decks."
 }

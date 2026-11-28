@@ -199,7 +199,7 @@ export function withExternalCliNote(text, { libraryRoot = '', studyCliPath = '',
 }
 
 const CLI_OPENING_ASK = '我在用 StudyHub 桌面版学习，这个命令行窗口开在我的学习库目录里。先回复一句你已经准备好，然后等我说要做什么。';
-const CLI_OPENING_FIRST = '读写学习库（课程、题组、题目、复习记录）都用下面的 study-cli.mjs 命令；第一次先调用 library.context（不用 --file），看看有哪些课程和题组。';
+const CLI_OPENING_FIRST = '读写学习库（课程、题组、题目、复习记录）都用下面的 study-cli.mjs 命令；等我说了要做什么、开始读写学习库时，先调用 library.context（不用 --file），看看有哪些课程和题组。';
 
 /**
  * The opening note 「在学习库里打开 agy / codex」 copies for the CLI it opens (StudyHub Desktop): it is told to read and write the library only through the

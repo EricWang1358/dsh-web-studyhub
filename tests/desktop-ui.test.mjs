@@ -372,6 +372,10 @@ test('the opening note asks the CLI to reply ready and wait, and does not also s
     assert.match(note, language === 'zh' ? /先回复一句你已经准备好，然后等我说要做什么/ : /Reply in one line that you are ready, then wait/);
     assert.doesNotMatch(note, /我想：|What I want:|留空|left blank/, `${language}: no blank-tail note to contradict "wait"`);
     assert.match(note, /study-cli\.mjs/);
+    const waits = note.search(language === 'zh' ? /然后等我说要做什么/ : /then wait for me to say what to do/);
+    const firstCall = note.search(/library\.context/);
+    assert.ok(waits >= 0 && firstCall > waits, `${language}: the reply-ready-and-wait line comes before the library.context call`);
+    assert.match(note.slice(waits, firstCall), language === 'zh' ? /开始读写学习库时/ : /you start on the library/, `${language}: library.context is for when the work starts, not a first move`);
   }
 });
 
