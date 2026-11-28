@@ -60,15 +60,24 @@ function PdfConvertJob({ job, send, onOpenSources, onOpenSettings, onChanged, on
   };
   // A stopped local service is started by the run itself (lib/contexts/audio/pdf/convert-run.js): 接着做 is all it takes.
   const retry = () => run('retry', () => send('mineru.retry', { jobId: job.id }));
+  // When a cloud conversion fails, the learner can always switch it straight to the local MinerU route ("改用本机").
+  const switchToLocal = () => run('switch-local', () => send('mineru.retry', { jobId: job.id, route: 'local' }));
+  const cloudFailed = job.route === 'cloud' && ['failed', 'interrupted'].includes(job.status);
+  const failureCode = job.errorCode || job.failure?.code;
+  const cloudConfigError = cloudFailed && ['invalid-token', 'expired', 'invalid-base-url'].includes(failureCode);
+  const cloudSwitchPrimary = cloudFailed && (cloudConfigError || failureCode === 'page-too-large' || !job.retryable);
+  const switchAction = cloudFailed ? { label: ui('改用本机'), here: true, run: switchToLocal, disabled: !!working, tip: ui('改用本机 MinerU 解析这份 PDF，不再上传到云端。') } : null;
   // A failure only the installation can fix (Marker 2.x without Docker, a missing program) leads to the settings; 接着做 helps after that, from the console.
-  const needsSettings = job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
-  const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), here: true, run: () => setEditing(true) } : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
-    : job.status === 'failed' && job.retryable ? { label: ui('接着做'), here: true, run: retry, disabled: !!working, tip: retryTip(job) }
-      : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
+  const needsSettings = !cloudFailed && job.status === 'failed' && job.failure?.fix === 'settings' && !!onOpenSettings;
+  const primary = isHeldTask(job) && !isActiveJob(job) ? { label: HELD_ENTRY(), here: true, run: () => setEditing(true) }
+    : cloudSwitchPrimary ? switchAction
+      : needsSettings ? { label: ui('前往设置'), run: () => onOpenSettings(job.converter === 'marker' ? 'settings-marker' : 'settings-mineru') }
+        : job.status === 'failed' && job.retryable ? { label: ui('接着做'), here: true, run: retry, disabled: !!working, tip: retryTip(job) }
+          : job.status === 'complete' && job.sourceIds?.length > 0 && onOpenSources ? { label: ui('打开资料'), run: () => onOpenSources(job.sourceIds) } : undefined;
   const follow = followUpLink(job, job.sourceIds, onGenerate), custom = useCustomLink(job);
-  // Before 深度定制 and 用它出题 make anything from a big book, the way to its search index (only for a finished book that has none).
   const index = useIndexLink({ docs: job.status === 'complete' && job.documentId ? [hintDocOf({ documentId: job.documentId, sourceIds: job.sourceIds, pages: job.sourceIds?.length ?? 0, courses: job.courses })] : [], onOpenSettings });
-  const links = [index, follow, custom].filter(Boolean);
+  const cloudSettingsLink = cloudConfigError && onOpenSettings ? { label: ui('前往设置'), run: () => onOpenSettings('settings-mineru') } : null;
+  const links = [!cloudSwitchPrimary && switchAction, cloudSettingsLink, index, follow, custom].filter(Boolean);
   return <>
     <CompactJobCard job={job} primary={primary} links={links.length ? links : undefined} id={`pdf-job-${job.id}`} data-route={job.route || 'local'}
       onStop={() => run('cancel', () => send('job.control', { jobId: job.id, action: 'cancel' }))}
@@ -235,6 +244,7 @@ export function ConversionEnvironment({ env, converter, service, stoppedAtFailur
           {env.modelsRealPath && <p>{uiFormat('它是一个链接，实际在：{0}', [env.modelsRealPath])}</p>}
         </details></li>}
         {local && env.device && <li>{uiFormat('设备：{0}', [env.device])}</li>}
+        {!local && env.endpoint && <li>{uiFormat('接口：{0}', [env.endpoint])}</li>}
         {!local && env.language && <li>{uiFormat('识别语言：{0}', [env.language])}</li>}
         {!local && env.maxPages > 0 && env.maxBytes > 0 && <li>{Number.isFinite(env.bookBytes)
           ? uiFormat('每段不超过 {0} 页 / {1} MB · 本书 {2}', [env.maxPages, megabytes(env.maxBytes), formatBytes(env.bookBytes)])
@@ -295,7 +305,7 @@ const STATUS_TONE = { running: 'info', complete: 'success', failed: 'error', can
 const STAGE_TEXT = { start: () => ui('启动'), 'start-service': () => ui('启动本机服务'), queued: () => ui('排队'), split: () => ui('切分 PDF'), upload: () => ui('上传'), parse: () => ui('云端解析'), local: () => ui('本地解析'),
   download: () => ui('下载结果'), merge: () => ui('合并各段'), save: () => ui('保存为资料') };
 
-function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry, onRemove, onOpenSettings, onRestored }) {
+function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry, onSwitchLocal, onRemove, onOpenSettings, onRestored }) {
   const status = row.status, finished = !!row.finishedAt && status !== 'running' && status !== 'interrupted';
   const route = row.converter === 'marker' ? 'Marker · ' + ui('本地') : row.route === 'local' ? uiFormat('本地 · {0}', [row.tier || 'mineru']) : capital(ui('云端'));
   const size = Number.isFinite(row.bytes) ? formatBytes(row.bytes) : '', pages = Number.isFinite(row.pages) ? (row.pages === 1 ? ui('1 页') : uiFormat('{0} 页', [row.pages])) : '';
@@ -332,7 +342,7 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
         {status === 'cancelled' && <small>{ui('已解析好的段落会保留，再选同一个文件不会重复解析。')}</small>}
         {status === 'held' && <small>{ui('已转换，还没有存为资料。')}</small>}
         {progress && <small>{progress}</small>}
-        {stuck && <Hint as="small">{row.route === 'local' ? ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。') : ui('云端解析已停用；请重新选择这份 PDF 用本机解析。')}</Hint>}
+        {stuck && <Hint as="small">{ui('临时文件已清理，没法接着做。重新选择这份 PDF 再解析一次，已解析好的段落会被复用。')}</Hint>}
         {row.env && <details className="pdf-env-details"><summary>{ui('运行环境')}</summary><ConversionEnvironment converter={row.converter} env={row.env} bare stoppedAtFailure={row.failure?.code === 'server-stopped'}
           timings={row.route === 'local' ? { windows: row.windows, secondsPerPage: row.plan?.secondsPerPage } : undefined} /></details>}
         <div className="pdf-history__actions">
@@ -345,6 +355,9 @@ function HistoryRow({ row, now, working, onOpen, onShowJob, onEditHeld, onRetry,
           {status === 'held' && <Button variant="link" size="sm" className="pdf-history__action" aria-label={uiFormat('修改并导入「{0}」', [row.filename])} onClick={() => onEditHeld(row)}>{HELD_ENTRY()}</Button>}
           {row.canRetry && <Tooltip layer content={row.converter !== 'marker' && row.failure?.code === 'server-stopped' ? ui('会先启动本机 MinerU 服务，再从停下的那一段接着解析。') : ui('已完成的段落会直接复用，不会重复解析。')}>
             <Button variant="secondary" size="sm" className="pdf-history__action" busy={busy} lock={!!working && !busy} aria-label={uiFormat('接着解析「{0}」', [row.filename])} onClick={() => onRetry(row)}>{ui('接着做')}</Button>
+          </Tooltip>}
+          {row.canRetry && row.route === 'cloud' && <Tooltip layer content={ui('改用本机 MinerU 解析这份 PDF，不再上传到云端。')}>
+            <Button variant="quiet" size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('改用本机解析「{0}」', [row.filename])} onClick={() => onSwitchLocal(row)}>{ui('改用本机')}</Button>
           </Tooltip>}
           {status !== 'running' && <Button variant="link" size="sm" className="pdf-history__action" lock={!!working} aria-label={uiFormat('删除「{0}」的记录', [row.filename])} onClick={() => onRemove(row)}>{ui('删除记录')}</Button>}
         </div>
@@ -418,6 +431,10 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
     await send('mineru.retry', { jobId: row.id });
     await load(); onChanged?.();
   });
+  const switchLocal = row => work(row.id, async () => {
+    await send('mineru.retry', { jobId: row.id, route: 'local' });
+    await load(); onChanged?.();
+  });
   const showJob = row => {
     const card = typeof document !== 'undefined' ? document.getElementById(`pdf-job-${row.id}`) : null;
     if (card) { card.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); card.focus?.({ preventScroll: true }); } else onOpenJob?.(row);
@@ -443,7 +460,7 @@ export function PdfConvertHistory({ act, data, jobs, onOpenSources, onOpenJob, o
       <h5 className="pdf-history__day">{dayHeading(group)}</h5>
       <ul className="pdf-history__list">
         {group.rows.map(row => <HistoryRow key={row.id} row={row} now={clock} working={working} onOpen={target => onOpenSources?.(target.document?.sourceIds || [])}
-          onShowJob={showJob} onEditHeld={setEditing} onRetry={retry} onRemove={remove} onOpenSettings={onOpenSettings} onRestored={() => { void load(); onChanged?.(); }} />)}
+          onShowJob={showJob} onEditHeld={setEditing} onRetry={retry} onSwitchLocal={switchLocal} onRemove={remove} onOpenSettings={onOpenSettings} onRestored={() => { void load(); onChanged?.(); }} />)}
       </ul>
     </div>)}
     {more > 0 && <Button variant="quiet" size="sm" onClick={() => setShown(current => current + HISTORY_PAGE)}>{uiFormat('显示更多（还有 {0} 条）', [more])}</Button>}

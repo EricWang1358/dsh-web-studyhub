@@ -53,7 +53,7 @@ export default function MineruInstallCard({ call: given, compact = false, onOpen
   const toast = useToast(), study = useStudy(), pick = pickDirectory || study.host?.pickDirectory;
   const canChat = hasChatHost(study.host);
   const usable = typeof call === 'function';
-  const { local, setLocal } = useMineruState({ call, initialLocal, enabled: usable });
+  const { local, setLocal } = useMineruState({ call, initialLocal, enabled: usable, withSettings: false });
   const [working, setWorking] = useState(''), [error, setError] = useState('');
   // asking: '' | 'uninstall' | 'reinstall' (the confirmation open). tries: how often the fix of one failure (its key) was pressed and the failure came back.
   const [location, setLocation] = useState(''), [choosing, setChoosing] = useState(false), [moving, setMoving] = useState(false), [asking, setAsking] = useState('');

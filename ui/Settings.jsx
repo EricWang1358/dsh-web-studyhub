@@ -10,7 +10,7 @@ import { useComponentCss } from './components/css.js';
 import fieldsCss from './components/fields.css';
 import { useInjectCss } from './shared.js';
 import css from './settings.css';
-import { loadMineruLocal } from './use-mineru.js';
+import { loadMineruLocal, loadMineruSettings } from './use-mineru.js';
 import { loadRetrievalStatus } from './retrieval-status.js';
 import { readText, writeText } from './storage.js';
 import { peekQuery, useHostQuery } from './host-query.js';
@@ -109,9 +109,10 @@ export default function Settings({
   // What the host says is set up: read once, quietly (no model is called). It only decides which group starts open.
   const [loaded, setStatus] = useState(() => {
     const mineru = peekQuery('mineru.local.status', {});
+    const mineruSettings = peekQuery('mineru.settings.get', {});
     const retrieval = peekQuery('retrieval.status', {});
     return {
-      ...(mineru ? { mineru: { configured: ['ready', 'server-stopped'].includes(mineru.state) } } : {}),
+      ...((mineru || mineruSettings) ? { mineru: { configured: ['ready', 'server-stopped'].includes(mineru?.state) || (mineruSettings?.mode === 'cloud' && !!mineruSettings?.token?.set) } } : {}),
       ...(retrieval ? { retrieval: { status: retrieval, plan: null } } : {}),
     };
   });
@@ -121,8 +122,12 @@ export default function Settings({
   useLiveEffect((live) => {
     if (typeof call !== 'function') return;
     const keep = (name) => (value) => { if (live() && value) setStatus((current) => ({ ...current, [name]: value })); };
-    // MinerU is set up when it is installed (running or not: a conversion starts a stopped service); read through the shared key the PDF conversion pane reads too.
-    if (hasContext(data, 'audio')) loadMineruLocal(call).then((value) => keep('mineru')(value && { configured: ['ready', 'server-stopped'].includes(value.state) }), () => {});
+    if (hasContext(data, 'audio')) {
+      Promise.all([loadMineruLocal(call).catch(() => null), loadMineruSettings(call).catch(() => null)])
+        .then(([localVal, cloudVal]) => {
+          if (localVal || cloudVal) keep('mineru')({ configured: ['ready', 'server-stopped'].includes(localVal?.state) || (cloudVal?.mode === 'cloud' && !!cloudVal?.token?.set) });
+        }, () => {});
+    }
     if (hasContext(data, 'generation')) loadRetrievalStatus(call).then((value) => keep('retrieval')(value && { status: value, plan: null }), () => {});
   }, []);
 

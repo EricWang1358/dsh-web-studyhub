@@ -41,13 +41,15 @@ const file = { name: 'Book.pdf', size: 12 * 1024 * 1024 };
 
 /* ---------- settings ---------- */
 
-test('settings: one section for MinerU on this computer, with the one-click card and nothing of the removed cloud route', () => {
+test('settings: defaults to local MinerU with one-click card, and offers optional cloud route clearly labelled', () => {
   const html = render(h(MineruSettings, { call, initialLocal: states.missing }));
   assert.match(html, /PDF 转换（MinerU）/);
-  assert.match(html, /不上传任何内容。/);
+  assert.match(html, /解析方式/);
+  assert.match(html, /本机（默认）/);
+  assert.match(html, /云端（会把文件上传）/);
   assert.match(html, /class="mineru-install"/);
   assert.match(html, /未安装/);
-  assert.doesNotMatch(html, /type="password"|type="checkbox"|令牌无效|mineru\.net\/apiManage|云端|uv tool install/, 'no token, no consent, no terminal command');
+  assert.doesNotMatch(html, /type="password"|uv tool install/, 'default local mode shows no password field or terminal command');
   const ready = render(h(MineruSettings, { call, initialLocal: states.ready }));
   assert.match(ready, /可以用了/);
   assert.match(ready, /你自己安装的/, 'a MinerU found on the PATH says it is the learner\'s own');
@@ -55,9 +57,11 @@ test('settings: one section for MinerU on this computer, with the one-click card
 
 /* ---------- the import route panel ---------- */
 
-test('local ready: the plan, an estimate labelled as one, and no privacy checkbox, no cloud route to choose from', () => {
+test('local ready: the plan, an estimate labelled as one, default local route, and optional cloud switcher', () => {
   const html = render(h(MineruRoute, { file, call, initialLocal: states.ready, initialPlan: plan }));
-  assert.doesNotMatch(html, /name="mineru-route"|云端|暂不可用/);
+  assert.match(html, /本机（默认）/);
+  assert.match(html, /云端（会把文件上传）/);
+  assert.match(html, /data-route="local"/);
   assert.match(html, /这本书会分 9 段处理/);
   assert.match(html, /每 50 页一段/);
   assert.match(html, /约 12 分钟（估算：每页约 1\.6 秒/);
@@ -117,7 +121,7 @@ test('a running conversion: real progress (pages over pages), which piece of N, 
   assert.match(starting, /启动本机服务/, 'a stopped service being started by the run says so');
 });
 
-test('a failed conversion offers to continue without redoing finished pieces; a stopped service is started by that same 接着做; an old cloud job cannot continue', () => {
+test('a failed conversion offers to continue without redoing finished pieces; a stopped service is started by that same 接着做; a failed cloud job offers 改用本机', () => {
   const failed = render(jobs([job({ status: 'failed', retryable: true, stage: '本地解析没有完成（已完成的段落会保留）。', errorCode: 'window-failed' })]));
   assert.match(failed, /本地解析没有完成/);
   assert.match(failed, />接着做</);
@@ -125,9 +129,10 @@ test('a failed conversion offers to continue without redoing finished pieces; a 
   const stopped = render(jobs([job({ status: 'failed', retryable: true, errorCode: 'server-stopped', stage: '本机 MinerU 服务没有在运行，或解析到一半停了。点「接着做」会先启动服务，再从停下的那一段接着解析（已完成的段落会保留）。' })]));
   assert.match(stopped, />接着做</);
   assert.doesNotMatch(stopped, /重新启动本地服务并接着做/);
-  const cloud = render(jobs([job({ route: 'cloud', status: 'failed', retryable: false, errorCode: 'cloud-removed', stage: '云端解析已停用；请重新选择这份 PDF 用本机解析。' })]));
-  assert.match(cloud, /云端解析已停用/);
-  assert.doesNotMatch(cloud, />接着做<|去设置里换一个令牌/, 'nothing to retry and no token to replace');
+  const cloud = render(jobs([job({ route: 'cloud', status: 'failed', retryable: true, errorCode: 'invalid-token', stage: 'MinerU 令牌无效：请到「设置 › PDF 转换（MinerU）」检查接口地址并重新粘贴有效的密钥。' })]));
+  assert.match(cloud, /MinerU 令牌无效/);
+  assert.match(cloud, />改用本机</, 'cloud failure card offers 改用本机 fallback');
+  assert.match(cloud, />前往设置</, 'cloud auth failure also links to Settings');
 });
 
 test('a finished conversion says how many pages were saved and opens them; other job types are not drawn', () => {
@@ -222,7 +227,7 @@ test('English: no Chinese in any state of settings, the route panel, the job car
     h(MineruRoute, { file, call, initialLocal: states.ready, initialPlan: { ...plan, windows: [plan.windows[0]] } }),
     jobs([job(), job({ id: 'j2', phase: 'start-service', stage: '正在启动本机 MinerU 服务（第一次约 1 分钟）' }),
       job({ id: 'j3', status: 'failed', retryable: true, errorCode: 'server-stopped', stage: '本机 MinerU 服务没有在运行，或解析到一半停了。点「接着做」会先启动服务，再从停下的那一段接着解析（已完成的段落会保留）。' }),
-      job({ id: 'j4', route: 'cloud', status: 'failed', retryable: false, errorCode: 'cloud-removed', stage: '云端解析已停用；请重新选择这份 PDF 用本机解析。' }),
+      job({ id: 'j4', route: 'cloud', status: 'failed', retryable: true, errorCode: 'network', stage: '连不上 MinerU：请检查网络或接口地址后重试（已完成的部分会保留）。' }),
       job({ id: 'j5', status: 'cancelled', stage: '已取消；已解析好的段落会保留，再导入同一个文件不会重复解析' }),
       job({ id: 'j6', status: 'complete', phase: 'done', sourceIds: ['a'], warnings: ['本地解析可能把页眉、页脚和页码也留在了正文里；它们没有被删除。'] })]),
     h(LargeDocumentCard, { reason: 'pdf-size', detail: { name: 'book.pdf' }, retrieval: null }),
@@ -232,5 +237,5 @@ test('English: no Chinese in any state of settings, the route panel, the job car
   const english = render(h(MineruRoute, { file, call, initialLocal: states.needs, initialPlan: plan }), 'en');
   assert.match(english, /This book will be processed in 9 pieces/);
   assert.match(english, /Start local conversion/);
-  assert.doesNotMatch(english, /cloud/i);
+  assert.match(english, /Cloud \(uploads file\)/);
 });

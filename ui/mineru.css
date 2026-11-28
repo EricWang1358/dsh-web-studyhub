@@ -27,6 +27,15 @@
     .mineru-plan__list ol { display: grid; gap: var(--space-1); margin: 0; padding-left: var(--space-5); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
     .mineru-acked { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--ok-ink); font-size: var(--fs-sm); }
     .mineru-start { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    .mineru-routes { justify-self: start; }
+    .mineru-cloud { display: grid; gap: var(--space-4); min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-surface); }
+    .mineru-cloud__url-form { display: grid; gap: var(--space-2); min-width: 0; }
+    .mineru-cloud__url-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+    .mineru-cloud__url-row input { flex: 1 1 240px; min-width: 0; }
+    .mineru-cloud__ack { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+    .mineru-upload-confirm { display: grid; gap: var(--space-2); font-size: var(--fs-sm); line-height: var(--lh-body); }
+    .mineru-upload-confirm p { margin: 0; }
+    .mineru-upload-confirm__url { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--bg-sunken); overflow-wrap: anywhere; word-break: break-all; }
     /* 导入前先让我改: the text of a conversion that waits (ui/ConvertEdit.jsx). */
     .pdf-held { display: grid; justify-items: start; gap: var(--space-2); margin-bottom: var(--space-3); }
     .pdf-held p { margin: 0; }
