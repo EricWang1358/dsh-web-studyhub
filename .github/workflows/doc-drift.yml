@@ -1,0 +1,26 @@
+name: doc-drift
+
+# Pull requests and main pushes run the advisory doc-drift check inside .github/workflows/verify.yml
+# (warning-only, job summary). Keep this workflow for manual on-demand runs without duplicating PR annotations.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: doc-drift-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  doc-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Scan documentation for path and command drift (advisory)
+        continue-on-error: true
+        run: node scripts/doc-drift.mjs --annotations
