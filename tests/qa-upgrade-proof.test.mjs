@@ -17,6 +17,8 @@ test("the fake release is newer than the package under test, whatever its versio
   for (const current of [PACKAGE_VERSION, "5.4.0", "6.0.0-test", "10.2.3", "99.0.0"]) {
     const next = upgradeTestVersion(current);
     assert.ok(isNewerVersion(next, current), `${next} must be newer than ${current}`);
+    // Marked -test, so the fake can never carry the number of a real release.
+    assert.match(next, /^\d+\.0\.0-test$/, `${next} is marked as a test release`);
   }
   assert.throws(() => upgradeTestVersion("latest"), /version/i);
 });
@@ -91,6 +93,8 @@ test("a refusal, a transport error, an unfinished answer or a disk that disagree
   assert.match(reason(answered({ status: "failed", code: "UPDATE_INSTALL", kind: "network" })), /UPDATE_INSTALL.*network/);
   assert.match(reason({ result: { ok: false, error: { message: "plugin disposed" } } }), /plugin disposed/);
   assert.match(reason(answered({ status: "jobs-running", jobs: 2 })), /jobs-running/);
+  // The host says it installed something, but not the release that was offered (the disk agrees with the offer).
+  assert.match(reason(answered({ ...installed, version: "5.4.0" })), /installed 5\.4\.0, not 6\.0\.0-test/);
   assert.match(reason(answered(installed), { ...onDisk, installed: "5.4.0" }), /node_modules.*5\.4\.0/);
   assert.match(reason(answered(installed), { ...onDisk, dependency: "file:/pack/old-5.4.0.tgz" }), /dependency/);
   assert.match(reason(undefined), /no answer/i);
