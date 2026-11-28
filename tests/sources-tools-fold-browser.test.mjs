@@ -97,6 +97,8 @@ test('资料 keeps filters, grouping and the organizer in 「筛选与分组」'
         return { cut: words.scrollWidth > words.clientWidth + 1, wordsShown: document.querySelector('.sources-tools-toggle__label').getBoundingClientRect().width > 2 };
       });
       if (width >= 420) assert.equal(course.cut && course.wordsShown, false, `${where}: the course is not cut to make room for the button's words`);
+      // At 420 there is no room for both in every font (a wider one cut the course on Linux): the button is its icon there, in both languages.
+      if (width <= 420) assert.equal(course.wordsShown, false, `${where}: a pane this narrow draws the button as its icon`);
 
       await toggle.click();
       await page.locator('.sources-view-bar').waitFor();
