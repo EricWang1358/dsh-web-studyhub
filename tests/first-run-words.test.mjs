@@ -102,6 +102,21 @@ test('a paused full tour is remembered as the full tour; the short tour leaves t
   } finally { delete globalThis.localStorage; }
 });
 
+test('a full tour paused in another order of the list is not resumed at that step: it starts over, so no unseen step is skipped', () => {
+  const store = new Map();
+  globalThis.localStorage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)), removeItem: (key) => store.delete(key) };
+  try {
+    // As 5.4.0 wrote it: no order. Its third step was 学习库; in today's order a dozen steps nobody has seen come before that one.
+    store.set('study-tour:/a', JSON.stringify({ stepId: 'home', done: false, full: true }));
+    assert.deepEqual(m.readTourProgress('/a'), { stepId: '', done: false, full: true }, 'still the full tour, with no place to go back to');
+    store.set('study-tour:/a', JSON.stringify({ stepId: 'home', done: true, full: true }));
+    assert.equal(m.readTourProgress('/a').done, true, 'a finished tour stays finished');
+    // The short tour kept its order, so its place still counts.
+    store.set('study-tour:/b', JSON.stringify({ stepId: 'draft', done: false }));
+    assert.deepEqual(m.readTourProgress('/b'), { stepId: 'draft', done: false });
+  } finally { delete globalThis.localStorage; }
+});
+
 test('the checklist button for the skeleton goes to the page, and says so (it generates nothing)', () => {
   m.setUiLanguage('zh');
   assert.equal(m.stepAction({ id: 'skeleton', action: 'skeleton' }, { course: '' }, { skeleton: noop }).label, '去知识骨架页');

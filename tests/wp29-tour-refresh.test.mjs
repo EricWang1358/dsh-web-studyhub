@@ -79,11 +79,16 @@ test("the steps taken from the manual say what the product does (5.4.1)", () => 
   assert.deepEqual(anchorsOf(step("draft-check")), ["draft-question"]);
   // 发布并开始练 publishes every question (lib/contexts/authoring/operations.js draft.publish.quick): the card must not say that bad ones stay behind.
   assert.match(step("draft-check").body, /结构有问题的题也会发布/);
+  // Two kinds are published (lib/card-content.js publicationUngrable, ui/review/QuestionRun.jsx): only a question that can still be graded shows 待核对;
+  // one that cannot (no answer, bad options) shows a warning with 跳过此题，不计成绩 and 交给后台修题 instead.
+  assert.match(step("draft-check").body, /还能判分的.*「待核对」/);
+  assert.match(step("draft-check").body, /缺答案.*判不了分.*跳过（不计成绩）.*「交给后台修题」/);
   assert.doesNotMatch(step("draft-check").body, /留在草稿/);
   assert.match(step("grading").body, /选 5 这道题立刻算「已掌握」/);
   assert.match(step("round-end").body, /先遮答案自测/);
   assert.match(step("mastery").body, /不是正确率/);
-  assert.deepEqual(anchorsOf(step("mastery")), ["home-mastery", "home-hero"], "掌握度 is the home's number; 统计 shows 达标率, which is something else");
+  // 掌握度 is the home's number (统计 shows 达标率, which is something else), with no fall back to the whole desk, which says nothing about it.
+  assert.deepEqual(anchorsOf(step("mastery")), ["home-mastery"]);
   assert.equal(step("outline").page, "outline");
   // The book is toured where an unwritten one is started (the sidebar's 复习全书 goes there too): opening the book page could write the book's files.
   assert.equal(step("book").page, "outline");
@@ -98,7 +103,8 @@ test("the steps taken from the manual say what the product does (5.4.1)", () => 
 
 test("steps that may find their element missing carry a fallback anchor or a context guard", () => {
   // Rendered only in some states: no mistakes yet, no generation context, no similar questions.
-  const optional = ["wrongbook-recs", "settings-extensions", "settings-audio", "dashboard-charts", "home-course", "home-today", "home-mastery"];
+  // (home-mastery is not here: without a deck its step is left out, and with one the figure is drawn; a running tour lifts 简洁版, which would hide it.)
+  const optional = ["wrongbook-recs", "settings-extensions", "settings-audio", "dashboard-charts", "home-course", "home-today"];
   for (const item of TOUR_STEPS) {
     const anchors = anchorsOf(item);
     if (!anchors.some((anchor) => optional.includes(anchor))) continue;

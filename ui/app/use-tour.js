@@ -53,6 +53,7 @@ export function useTour({ core, lib, nav, session, drafts, intents, data, rootRe
   /** The steps of the short tour or of the full one, for what this library and host can show; while the first-run line is up (the sample never counts in it),
       the short tour ends on its step 2. */
   const stepsFor = (full) => data ? availableTourSteps(TOUR_STEPS, { sample: data.sample, full, line: firstRunLine(data).show, canChat,
+    hasDeck: data.decks.some((deck) => !deck.archived),
     pageAvailable: (id) => pageAvailable(data, id), hasContext: (id) => hasContext(data, id) }) : [];
   const savedTour = data?.root && !tourStep ? readTourProgress(data.root) : null;
   // While paused, the tour on offer is the one that was paused (the sidebar says "继续 3/8" for it).

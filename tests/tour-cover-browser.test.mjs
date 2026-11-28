@@ -10,6 +10,7 @@ import { createFakeModel } from '../scripts/fake-model.mjs';
 import { launchChromium } from '../scripts/qa/browser.mjs';
 import { scrubProcessEnv } from '../scripts/qa/env.mjs';
 import { frames, openPage, settleAnimations, until } from '../scripts/qa/layout-late.mjs';
+import { FULL_TOUR_ORDER } from '../ui/tour/steps.js';
 
 /* #1712 in a real browser. The three steps that introduce a page from its sidebar entry (任务, 备考补习, 学习笔记) neither cover the page's title nor its first
    block, with the sidebar there and put away, at 2000, 1440 and 420 px. With the sidebar put away they light the page's own heading, not the menu button.
@@ -65,7 +66,7 @@ test('#1712: the steps that open a page from the sidebar leave its title and fir
         }
         for (const id of STEPS) {
           // A paused full tour at this step, resumed from the sidebar-independent button in Settings.
-          await page.evaluate(([key, value]) => localStorage.setItem(key, value), [`study-tour:${root}`, JSON.stringify({ stepId: id, done: false, full: true })]);
+          await page.evaluate(([key, value]) => localStorage.setItem(key, value), [`study-tour:${root}`, JSON.stringify({ stepId: id, done: false, full: true, order: FULL_TOUR_ORDER })]);
           await page.reload();
           await page.locator('.study-app').waitFor({ timeout: 30000 });
           await page.locator('[data-tour="nav-menu"], [data-tour="nav-settings"]').first().waitFor({ timeout: 30000 });
@@ -182,7 +183,7 @@ test("the tour's steps over pages that save on arrival write nothing to the libr
     page.on('request', (request) => { if (request.url().includes('/api/call')) actions.push(JSON.parse(request.postData() || '{}').action); });
     await page.goto(server.url);
     await page.locator('.study-app').waitFor({ timeout: 30000 });
-    await page.evaluate(([key, value]) => localStorage.setItem(key, value), [`study-tour:${before.root}`, JSON.stringify({ stepId: 'book', done: false, full: true })]);
+    await page.evaluate(([key, value]) => localStorage.setItem(key, value), [`study-tour:${before.root}`, JSON.stringify({ stepId: 'book', done: false, full: true, order: FULL_TOUR_ORDER })]);
     await page.locator('[data-tour="nav-settings"]').click();
     await page.locator('.settings-nav__item[data-category="profile"]').click();
     await page.getByRole('button', { name: /^继续功能导览/ }).click();

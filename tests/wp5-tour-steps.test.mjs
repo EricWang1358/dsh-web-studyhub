@@ -6,7 +6,7 @@ import { readFile, readdir, access } from "node:fs/promises";
 import { join } from "node:path";
 import { anchorsInSource, sourceFiles } from "./helpers/tour-anchors.mjs";
 import { TOUR_STEPS, TOUR_CHAPTERS, availableTourSteps, tourNeighbour, tourNextChapter, tourKeyAction, tourStepCopy, chapterHeading,
-  opensFromNav, CORE_TOUR_LENGTH, CORE_ORDER } from "../ui/tour/steps.js";
+  opensFromNav, CORE_TOUR_LENGTH, CORE_ORDER, FULL_TOUR_ORDER } from "../ui/tour/steps.js";
 import { NAV_DEFAULTS, mergeOrder, migrateOrder } from "../ui/nav-order.js";
 
 const han = /[㐀-鿿]/;
@@ -78,6 +78,8 @@ test("the full tour is the explicit extra: every step but the short-tour-only on
     "mastery", "wrongbook", "dashboard", "outline",
     "exam", "examprep", "exam-plan",
     "notes", "skeleton", "book", "board", "settings-audio", "settings-extensions", "backup", "finish"]);
+  // A paused full tour is remembered as a step of THIS order: reorder the list or put a step before others, and this number goes up with the list above.
+  assert.equal(FULL_TOUR_ORDER, 2);
   assert.ok(!idsOf({ full: true }).includes("generate-quick"), "the short generate step has longer siblings in the full tour");
   assert.deepEqual(idsOf({ full: true, line: true }), idsOf({ full: true }), "the full tour is the same whether or not the line is up");
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");
@@ -109,6 +111,20 @@ test("every step has a chapter, and the list walks the chapters in the learning 
     assert.doesNotMatch(english[chapterHeading(chapter)], han);
   }
   assert.ok(english["跳到下一章"], "the skip action has its English");
+});
+
+test("chapters belong to the full tour: no card of the short tour carries one, so its ending does not read as 更多", () => {
+  for (const line of [false, true]) for (const step of availableTourSteps(TOUR_STEPS, { ...ALL, line })) assert.equal(step.chapter, undefined, step.id);
+  for (const step of availableTourSteps(TOUR_STEPS, { ...ALL, full: true })) assert.ok(TOUR_CHAPTERS.includes(step.chapter), step.id);
+  assert.equal(TOUR_STEPS.find((step) => step.id === "finish").chapter, "更多", "the list itself keeps its chapters");
+});
+
+test("a library with no published deck leaves out 掌握度, 总纲 and 复习全书: there is no figure, tree or button for them to talk about", () => {
+  const without = idsOf({ full: true, sample: { loaded: false }, hasDeck: false });
+  for (const id of ["mastery", "outline", "book"]) assert.ok(!without.includes(id), id);
+  const own = idsOf({ full: true, sample: { loaded: false }, hasDeck: true });
+  for (const id of ["mastery", "outline", "book"]) assert.ok(own.includes(id), `${id}: the learner's own deck is enough, no sample needed`);
+  assert.deepEqual(own.filter((id) => !without.includes(id)), ["mastery", "outline", "book"], "only those three depend on it");
 });
 
 test("跳到下一章 goes to the first step of the next chapter that is shown, and nowhere from the last chapter", () => {

@@ -193,6 +193,7 @@
     "tests/test-runner-schedule.test.mjs",
     "tests/toast-anchor-browser.test.mjs",
     "tests/topbar-fit-browser.test.mjs",
+    "tests/tour-card-browser.test.mjs",
     "tests/tour-cover-browser.test.mjs",
     "tests/tour-zoom-browser.test.mjs",
     "tests/undoable-browser.test.mjs",

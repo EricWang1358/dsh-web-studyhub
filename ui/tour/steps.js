@@ -20,7 +20,8 @@
    Every step has a `chapter` (TOUR_CHAPTERS). The list is written in the
    learning order and each chapter is one piece of it: the full tour walks it
    as written, the card's header says the chapter, and 跳到下一章 goes to the
-   next one's first step.
+   next one's first step. The short tour has no chapters: its ending is the
+   list's last, and 「更多」 over it would promise more steps.
    The short tour runs in CORE_ORDER. Its last step depends on the library:
    while the first-run line is up (`line: true`, the context's `line`), it
    ends on the line's step 2 on the library home; otherwise (`line: false`) on
@@ -31,6 +32,10 @@ const CHAPTER_HEADINGS = Object.freeze({ "开始": "功能导览 · 开始", "�
   "复习": "功能导览 · 复习", "考试": "功能导览 · 考试", "更多": "功能导览 · 更多" });
 export const TOUR_CHAPTERS = Object.freeze(Object.keys(CHAPTER_HEADINGS));
 export const chapterHeading = (chapter) => CHAPTER_HEADINGS[chapter];
+
+/** Which order of the full tour's list a paused full tour's step belongs to (ui/tour/progress.js). It goes up when steps move or are put before others:
+    the step a learner paused on then no longer says which steps they have seen. (1, never written down, is the order before 5.4.1.) */
+export const FULL_TOUR_ORDER = 2;
 
 export const TOUR_STEPS = [
   { id: "welcome", chapter: "开始", core: true,
@@ -93,7 +98,7 @@ export const TOUR_STEPS = [
     body: "AI 出的题先放进草稿。你可以逐题核对、修改或删除，确认无误再发布，发布后就能开始练习。保存和发布都在页面底部的这一栏里。这是一份示例草稿。" },
   { id: "draft-check", chapter: "备料", page: "draft", prepare: "openSampleDraft", anchor: "draft-question", needs: "draftId",
     title: "发布前抽查几道",
-    body: "抽查 3–5 道，看三件事：答案在引用的原文里找得到依据；考的是知识本身，不是「资料里说了什么」；答案只有一个。引用和结构由代码检查，内容仍可能出错。点「发布并开始练」时不再让模型复审，结构有问题的题也会发布，练习时标着「待核对」。" },
+    body: "抽查 3–5 道，看三件事：答案在引用的原文里找得到依据；考的是知识本身，不是「资料里说了什么」；答案只有一个。引用和结构由代码检查，内容仍可能出错。点「发布并开始练」时不再让模型复审，结构有问题的题也会发布：还能判分的，练习时标着「待核对」；缺答案、选项不全等判不了分的，练习时只能跳过（不计成绩）或「交给后台修题」。" },
   { id: "home", chapter: "练习", page: "library", anchor: ["home-today", "home-hero"],
     title: "学习库：今天学什么",
     body: "首页根据到期复习、错题和新题排好今天的计划，点一下就开始。一轮默认最多 20 题（在「设置 › 练习」改），顺序是到期 → 薄弱 → 新题，新题最多占一半。所有题组按课程整理在下方。" },
@@ -114,7 +119,7 @@ export const TOUR_STEPS = [
   { id: "round-end", chapter: "练习", page: "library",
     title: "做完一轮，先看本轮题目",
     body: "结算页的「本轮题目」列出这轮错了、没掌握和没答的题：点开回看你的答案、正确答案和问答；有错题时可以「先遮答案自测」再考自己一次，或直接重练错题。能说出为什么错，这一轮才算收尾。" },
-  { id: "mastery", chapter: "复习", page: "library", anchor: ["home-mastery", "home-hero"],
+  { id: "mastery", chapter: "复习", page: "library", anchor: "home-mastery", needsDeck: true,
     title: "掌握度看的是记得多久",
     body: "掌握度把每道题按级别折算再取平均，不是正确率：未学、薄弱、学习中（间隔不到 6 天）、熟悉（6 天以上）、已掌握（连续答对、间隔累积到 3 周以上，或自评「轻松掌握」）。刚学完全答对，数字也不会马上很高，隔几天再答对才升。" },
   { id: "wrongbook", chapter: "复习", page: "wrongbook", anchor: ["wrongbook-recs", "wrongbook-list"],
@@ -123,7 +128,7 @@ export const TOUR_STEPS = [
   { id: "dashboard", chapter: "复习", page: "dashboard", anchor: ["dashboard-charts", "dashboard-summary"],
     title: "统计：看见自己的进步",
     body: "分数趋势、未来 14 天的到期复习预测和各主题的掌握程度都在这里，页面底部的「模型用量」按功能列出 token 消耗。图里是示例的三周练习。" },
-  { id: "outline", chapter: "复习", page: "outline", anchor: "outline-tree",
+  { id: "outline", chapter: "复习", page: "outline", anchor: "outline-tree", needsDeck: true,
     title: "总纲：找没覆盖的章节",
     body: "资料按章节排成树，每一节能看掌握情况、直接练这一节；看到哪节没题，就回去补。这样看不花 token；「生成总纲」和「生成复习全书」要用模型，整本书比较费。" },
   { id: "exam", chapter: "考试", page: "exam", anchor: "exam-case",
@@ -144,7 +149,7 @@ export const TOUR_STEPS = [
     title: "知识骨架：把题连成一张图",
     body: "骨架用概念和关系把零散的题串起来，点一个概念就能看到相关题目，也可以切换成知识图谱。" },
   // The sidebar's 复习全书 opens the 总纲 page until a book is written; the tour stays there, since opening a book page could write the book's files.
-  { id: "book", chapter: "更多", page: "outline", anchor: "outline-book",
+  { id: "book", chapter: "更多", page: "outline", anchor: "outline-book", needsDeck: true,
     title: "复习全书：能读的一本书",
     body: "把一门课的讲解和题串成一本书，读到哪一节就能练哪一节，速查表适合考前翻。写书要用模型，整本书比较费：先生成总纲就能看到预计用量，也可以只挑几章写。还没写书时，「更多 › 复习全书」打开的就是这个总纲页。" },
   { id: "board", chapter: "更多", page: "board", prepare: "openBoardToday", anchor: "board-today-head",
@@ -184,17 +189,18 @@ export const tourStepCopy = (step) => [step.title, step.body, step.fullBody, ste
 /**
  * The steps this library can show: a step that needs the sample (its lecture,
  * draft or deck), a page or a component that is not there is left out.
- * ctx: { sample, pageAvailable(page), hasContext(id), full, line } — `full` picks the
+ * ctx: { sample, pageAvailable(page), hasContext(id), full, line, hasDeck } — `full` picks the
  * full tour; the default is the short one, in CORE_ORDER; `line` says the
- * first-run line is up (the short tour then ends on its step 2).
+ * first-run line is up (the short tour then ends on its step 2); `hasDeck` says a
+ * published deck is there (a `needsDeck` step talks about what only one brings).
  */
-export function availableTourSteps(steps, { sample, pageAvailable = () => true, hasContext = () => true, full = false, line = false, canChat = true } = {}) {
+export function availableTourSteps(steps, { sample, pageAvailable = () => true, hasContext = () => true, full = false, line = false, canChat = true, hasDeck = true } = {}) {
   const shown = steps.filter((step) => (full ? inFullTour(step) : inCoreTour(step) && (step.line === undefined || step.line === !!line)) &&
     (canChat !== false || step.id !== "guided-study") &&
-    (!step.needs || (sample?.loaded && sample[step.needs])) && (!step.page || step.page === "draft" || pageAvailable(step.page)) && (!step.context || hasContext(step.context)));
+    (!step.needs || (sample?.loaded && sample[step.needs])) && (!step.needsDeck || hasDeck) && (!step.page || step.page === "draft" || pageAvailable(step.page)) && (!step.context || hasContext(step.context)));
   if (full) return shown.map((step) => (step.fullBody ? { ...step, body: step.fullBody } : step));
   const rank = (step) => { const at = CORE_ORDER.indexOf(step.id); return at < 0 ? CORE_ORDER.length : at; };
-  return shown.map((step, at) => ({ step, at })).sort((a, b) => rank(a.step) - rank(b.step) || a.at - b.at).map(({ step }) => step);
+  return shown.map((step, at) => ({ step, at })).sort((a, b) => rank(a.step) - rank(b.step) || a.at - b.at).map(({ step: { chapter: _chapter, ...step } }) => step);
 }
 
 /** The id of the step before (-1) or after (+1) `id`; a vanished step restarts at the first. */
