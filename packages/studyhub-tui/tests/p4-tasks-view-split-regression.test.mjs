@@ -1437,7 +1437,7 @@ describe('#1623 TasksView: late delete/purge results, pause/concurrency override
   test('17. Moved behaviour: a status change of the selected job re-fetches its output', async () => {
     const liveGate = deferred();
     let outputText = 'first pass log';
-    const { host } = makeHost(async (name) => {
+    const { calls, host } = makeHost(async (name) => {
       if (name === 'job.live.list') {
         await liveGate.promise;
         return {
@@ -1472,10 +1472,19 @@ describe('#1623 TasksView: late delete/purge results, pause/concurrency override
       { cols: 120, rows: 34, shellActions: makeShellActions() },
     );
     try {
-      await h.waitFor((f) => f.includes('first pass log'), 4000, 'first output');
+      const firstFrame = await h.waitFor((f) => f.includes('first pass log'), 4000, 'first output');
+      const outputCallsBefore = calls.filter((c) => c.name === 'job.output').length;
+      assert.equal(firstFrame.includes('first pass log'), true);
+      assert.equal(outputCallsBefore, 1, 'initial selected job fetches output once before status flip');
       outputText = 'second pass log';
       liveGate.resolve();
-      await h.waitFor((f) => f.includes('second pass log'), 4000, 'output re-fetched after the status change');
+      const secondFrame = await h.waitFor((f) => f.includes('second pass log'), 4000, 'output re-fetched after the status change');
+      assert.equal(secondFrame.includes('second pass log'), true);
+      assert.equal(secondFrame.includes('first pass log'), false);
+      assert.ok(
+        calls.filter((c) => c.name === 'job.output').length > outputCallsBefore,
+        'status flip must trigger a fresh job.output fetch',
+      );
     } finally {
       liveGate.resolve();
       h.cleanup();
@@ -1559,9 +1568,20 @@ describe('#1623 TasksView: late delete/purge results, pause/concurrency override
     try {
       await h.waitFor((f) => f.includes('Live Modal Job'), 4000, 'job listed');
       h.dispatchKey('o', {});
-      await h.waitFor((f) => f.includes('Job Output: Live Modal Job') && f.includes('(1/1)'), 4000, 'output modal on the snapshot record');
+      const snapshotFrame = await h.waitFor(
+        (f) => f.includes('Job Output: Live Modal Job') && f.includes('(1/1)'),
+        4000,
+        'output modal on the snapshot record',
+      );
+      assert.equal(snapshotFrame.includes('Job Output: Live Modal Job') && snapshotFrame.includes('(1/1)'), true);
       liveGate.resolve();
-      await h.waitFor((f) => f.includes('Job Output: Live Modal Job') && f.includes('(2/2)'), 4000, 'output modal switched to the live record');
+      const liveFrame = await h.waitFor(
+        (f) => f.includes('Job Output: Live Modal Job') && f.includes('(2/2)'),
+        4000,
+        'output modal switched to the live record',
+      );
+      assert.equal(liveFrame.includes('Job Output: Live Modal Job') && liveFrame.includes('(2/2)'), true);
+      assert.equal(liveFrame.includes('(1/1)'), false, 'stale snapshot call count must be replaced by live count');
     } finally {
       liveGate.resolve();
       h.cleanup();

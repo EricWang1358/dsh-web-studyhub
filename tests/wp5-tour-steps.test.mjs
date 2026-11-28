@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { anchorsInSource, sourceFiles } from "./helpers/tour-anchors.mjs";
 import { TOUR_STEPS, TOUR_CHAPTERS, availableTourSteps, tourNeighbour, tourNextChapter, tourKeyAction, tourStepCopy, chapterHeading,
   opensFromNav, CORE_TOUR_LENGTH, CORE_ORDER, FULL_TOUR_ORDER } from "../ui/tour/steps.js";
+import { readTourProgress, writeTourProgress } from "../ui/tour/progress.js";
 import { NAV_DEFAULTS, mergeOrder, migrateOrder } from "../ui/nav-order.js";
 
 const han = /[㐀-鿿]/;
@@ -78,8 +79,24 @@ test("the full tour is the explicit extra: every step but the short-tour-only on
     "mastery", "wrongbook", "dashboard", "outline",
     "exam", "examprep", "exam-plan",
     "notes", "skeleton", "book", "board", "settings-audio", "settings-extensions", "backup", "finish"]);
-  // A paused full tour is remembered as a step of THIS order: reorder the list or put a step before others, and this number goes up with the list above.
-  assert.equal(FULL_TOUR_ORDER, 2);
+  // A paused full tour is remembered as a step of THIS order: stale orders restart at stepId "" while current order resumes at its saved step.
+  const prevStorage = globalThis.localStorage;
+  const mem = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => { mem.set(k, String(v)); },
+    removeItem: (k) => { mem.delete(k); },
+  };
+  try {
+    writeTourProgress("tour-order-lib", { stepId: "draft", done: false, full: true });
+    assert.deepEqual(readTourProgress("tour-order-lib"), { stepId: "draft", done: false, full: true });
+    mem.set("study-tour:tour-order-lib", JSON.stringify({ stepId: "draft", done: false, full: true, order: FULL_TOUR_ORDER - 1 }));
+    assert.deepEqual(readTourProgress("tour-order-lib"), { stepId: "", done: false, full: true }, "stale full-tour order restarts from the beginning");
+    writeTourProgress("tour-order-lib", { stepId: "draft", done: false });
+    assert.deepEqual(readTourProgress("tour-order-lib"), { stepId: "draft", done: false }, "short tour progress is unaffected by full-tour order");
+  } finally {
+    globalThis.localStorage = prevStorage;
+  }
   assert.ok(!idsOf({ full: true }).includes("generate-quick"), "the short generate step has longer siblings in the full tour");
   assert.deepEqual(idsOf({ full: true, line: true }), idsOf({ full: true }), "the full tour is the same whether or not the line is up");
   assert.equal(new Set(TOUR_STEPS.map((step) => step.id)).size, TOUR_STEPS.length, "unique ids");

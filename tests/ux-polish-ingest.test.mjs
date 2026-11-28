@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { parseCss } from '../scripts/qa/guardrail-baseline.mjs';
 import { loadUi } from './helpers/ui-module.mjs';
 import { inApp } from './helpers/fake-app.mjs';
 import { loadInteractiveUi, withBrowserGlobals, textOf } from './helpers/react-harness.mjs';
@@ -159,8 +160,15 @@ test('Draft: blocker summary jumps to flagged card when indices exist, falls bac
   assert.match(enHtml, /Jump to flagged question/);
   assert.match(enHtml, /More fields/);
 
-  const draftCss = await readFile(new URL('../ui/draft.css', import.meta.url), 'utf8');
-  assert.doesNotMatch(draftCss, /\.sticky-actions__status:not\(\[data-unsaved\]\)\s*\{\s*display:\s*none/, 'card count remains visible on narrow panes');
+  const draftCss = parseCss(await readFile(new URL('../ui/draft.css', import.meta.url), 'utf8'));
+  const hidesStatus = draftCss.declarations.some(
+    (d) => d.ctx.at(-1)?.includes('.sticky-actions__status') && d.prop === 'display' && d.value === 'none',
+  );
+  assert.equal(hidesStatus, false, 'card count must never be hidden with display: none on narrow panes');
+  const narrowStatusDecls = draftCss.declarations.filter(
+    (d) => d.ctx.some((c) => /^@container\b/.test(c)) && d.ctx.at(-1) === '.draft-page .sticky-actions__status',
+  );
+  assert.ok(narrowStatusDecls.some((d) => d.prop === 'text-overflow' && d.value === 'ellipsis'), 'narrow pane keeps status visible as one ellipsized line');
 });
 
 /* ---------- 3. Manage ---------- */
@@ -283,8 +291,10 @@ test('TooBigChoice & Generate: retrieval mode shows inline topic input synced wi
 test('AudioImport: secondary ways render as a single inline bar', async () => {
   const html = render(h(m.AudioImport, { data: { decks: [], jobs: [] }, busy: false, act: noop }));
   assert.match(html, /class="audio-ways" data-audio-ways="inline"/);
-  const audioCss = await readFile(new URL('../ui/audio-import.css', import.meta.url), 'utf8');
-  assert.match(audioCss, /\.audio-ways\s*\{[^}]*display:\s*flex;/);
+  const audioCss = parseCss(await readFile(new URL('../ui/audio-import.css', import.meta.url), 'utf8'));
+  const waysDecls = audioCss.declarations.filter((d) => d.ctx.at(-1) === '.audio-ways');
+  assert.ok(waysDecls.some((d) => d.prop === 'display' && d.value === 'flex'), '.audio-ways uses flex layout');
+  assert.ok(waysDecls.some((d) => d.prop === 'flex-wrap' && d.value === 'wrap'), '.audio-ways wraps cleanly on narrow panes');
 });
 
 test('LiveClass: hides $0 paid estimate in local/free mode, folds secondary save option, and adds 2-dot legend in live-feed-head', () => {
