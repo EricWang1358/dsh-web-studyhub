@@ -22,26 +22,34 @@ function passesBy(entry, callSpec) {
   return true;
 }
 
+/** Close spares without making anyone wait, and let `allClosed` wait for every one still closing. */
+function createCloser() {
+  const closing = new Set();
+  return Object.freeze({
+    close(spare) {
+      const done = Promise.resolve(spare.close()).catch(() => {}).finally(() => closing.delete(done));
+      closing.add(done);
+      return done;
+    },
+    allClosed: () => Promise.all([...closing]),
+  });
+}
+
 /**
  * At most one process waiting for the next call. A claimed process belongs to the caller and never comes back.
  * @param {object} ports
  * @param {(spec) => { spec, exited: Promise<void>, close: () => Promise<void> }} ports.open start a spare
  * @param {(spec) => import('../../domain/agy-warm-policy.js').AgyWarmPlan} ports.planOnExpiry what the settings say when a spare has waited its limit
  * @param {{ set: Function, clear: Function }} [ports.timers]
+ * @param {() => number} [ports.now] the wall clock: a timer may not count the time the computer was asleep
  */
-export function createAgyWarmPool({ open, planOnExpiry, timers = UNREF_TIMERS }) {
+export function createAgyWarmPool({ open, planOnExpiry, timers = UNREF_TIMERS, now = Date.now }) {
   let waiting = null;
   let disposed = false;
   // Set after a spare died while waiting or a call failed: nothing is started again until the next call asks (strict), so a CLI that
   // cannot run is not restarted every time the settings are read.
   let backedOff = false;
-  const closing = new Set();
-
-  const close = (spare) => {
-    const done = Promise.resolve(spare.close()).catch(() => {}).finally(() => closing.delete(done));
-    closing.add(done);
-    return done;
-  };
+  const closer = createCloser();
 
   const take = () => {
     const entry = waiting;
@@ -53,13 +61,18 @@ export function createAgyWarmPool({ open, planOnExpiry, timers = UNREF_TIMERS })
 
   const release = () => {
     const spare = take();
-    return spare ? close(spare) : Promise.resolve();
+    return spare ? closer.close(spare) : Promise.resolve();
+  };
+
+  /* Checked whenever the pool is asked, besides the timer: after a sleep the timer can be hours late. */
+  const releaseIfTooOld = () => {
+    if (waiting && now() - waiting.startedAt >= AGY_SPARE_MAX_AGE_MS) release();
   };
 
   /* The clock starts with the process and is never set back, so no spare gets older than the limit. */
   function start(spec) {
     const spare = open(spec);
-    const entry = { spare, timer: null, passedBy: false };
+    const entry = { spare, timer: null, passedBy: false, startedAt: now() };
     waiting = entry;
     entry.timer = timers.set(() => {
       if (waiting !== entry) return;
@@ -74,7 +87,9 @@ export function createAgyWarmPool({ open, planOnExpiry, timers = UNREF_TIMERS })
   }
 
   function apply(plan) {
-    if (disposed || plan.action === 'keep') return;
+    if (disposed) return;
+    releaseIfTooOld();
+    if (plan.action === 'keep') return;
     if (plan.action === 'release') {
       release();
       return;
@@ -90,6 +105,7 @@ export function createAgyWarmPool({ open, planOnExpiry, timers = UNREF_TIMERS })
     apply,
     /** The waiting process when it can answer this call, else null; then `plan` says what waits for the call after this one. */
     claim(callSpec, plan) {
+      releaseIfTooOld();
       if (!disposed && plan.action === 'ensure') {
         if (waiting && canServeAgyCall(waiting.spare.spec, callSpec)) {
           const spare = take();
@@ -115,7 +131,7 @@ export function createAgyWarmPool({ open, planOnExpiry, timers = UNREF_TIMERS })
     async dispose() {
       disposed = true;
       release();
-      await Promise.all([...closing]);
+      await closer.allClosed();
     },
   });
 }

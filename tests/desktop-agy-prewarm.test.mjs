@@ -259,7 +259,7 @@ test('adapters/cli/process-runner hold(): the time limit and the abort signal co
  * 3. The pool: one spare, used once
  * ============================================================================ */
 
-function fakePool(expiryPlan = () => ({ action: 'release' })) {
+function fakePool(expiryPlan = () => ({ action: 'release' }), now = undefined) {
   const opened = [];
   const timers = [];
   const pool = createAgyWarmPool({
@@ -271,6 +271,7 @@ function fakePool(expiryPlan = () => ({ action: 'release' })) {
       return spare;
     },
     planOnExpiry: (expired) => expiryPlan(expired),
+    ...(now ? { now } : {}),
     timers: {
       set(fn, ms) { const timer = { fn, ms, cleared: false }; timers.push(timer); return timer; },
       clear(timer) { if (timer) timer.cleared = true; },
@@ -379,6 +380,28 @@ test('adapters/cli/agy-warm-pool: a spare that waited its limit is released or r
   otherTimers[0].fn();
   assert.equal(taken.closed, 0, 'the timer of a spare that was handed out does nothing');
   assert.equal(otherOpened.length, 2);
+});
+
+test('adapters/cli/agy-warm-pool: a spare past the limit is not used even when its timer never fired (a computer that slept)', () => {
+  let clock = 1_000_000;
+  const { pool, opened } = fakePool(undefined, () => clock);
+  pool.claim(spec(), callPlan());
+  clock += AGY_SPARE_MAX_AGE_MS - 1;
+  assert.equal(pool.claim(spec(), callPlan()), opened[0], 'inside the limit by the wall clock');
+  clock += 2 * 60 * 60 * 1000;
+  assert.equal(pool.claim(spec(), callPlan()), null, 'two hours asleep: this call starts fresh');
+  assert.equal(opened[1].closed, 1);
+  assert.equal(opened.length, 3, 'and a new spare takes its place');
+
+  clock += AGY_SPARE_MAX_AGE_MS;
+  pool.apply(agyWarmPlan('after-use', 'config', spec()));
+  assert.equal(opened[2].closed, 1, 'a mere settings read lets an old one go too');
+  assert.equal(opened.length, 3, 'after-use starts none for that');
+  pool.apply(agyWarmPlan('always', 'config', spec()));
+  clock += AGY_SPARE_MAX_AGE_MS;
+  pool.apply(agyWarmPlan('always', 'config', spec()));
+  assert.equal(opened[3].closed, 1);
+  assert.equal(opened.length, 5, 'always: replaced');
 });
 
 test('adapters/cli/agy-warm-pool: after a spare dies on its own or a call fails, nothing is pre-warmed until the next call', async () => {
