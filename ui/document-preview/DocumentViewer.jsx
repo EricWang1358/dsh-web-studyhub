@@ -1019,7 +1019,7 @@ function DocumentReader({ source, quote, call, data, host, onOpenCard, onOpenDec
         {marks.chip}
       </div>
       <p className="reader-toolbar__where">{where ? <Tooltip layer content={where}><span tabIndex={0}>{where}</span></Tooltip> : null}</p>
-      {view === 'original' && !localMode && <HelpTip label={ui('在原始 PDF 里怎么提问')} placement="bottom-end">{ui('在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。')}</HelpTip>}
+      {view === 'original' && <HelpTip label={ui('在原始 PDF 里怎么提问')} placement="bottom-end">{ui('在原始 PDF 里按页提问（「学习工具」）；要问选中的一段，请切换到「阅读」。')}</HelpTip>}
       {!localMode && loop.returnDelta > 0 && <span className="reader-toolbar__delta" role="status">{uiFormat('本轮 +{0}%', [loop.returnDelta])}</span>}
       <div className="reader-toolbar__group reader-toolbar__group--end">
         {/* 文字 | 原始 PDF (#1001): for a PDF whose original file is here; in a narrow reader the views stay in 更多 only, so the toolbar keeps one row. */}
