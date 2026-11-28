@@ -469,7 +469,8 @@ test('outline target resets stale deck filter, restores filter without target, c
     await place.click();
     await page.locator('.outline-tree').waitFor({ timeout: 30000 });
     await page.locator('.sh-toasts .sh-toast', { hasText: '没有在总纲里找到这道题的出处' }).waitFor({ state: 'visible', timeout: 15000 });
-    await page.unroute('**/api/call', stripHandler);
+    // Waits for a handler still fetching (a poll's second read of the outline): unroute would let it fulfil a route already let go of.
+    await page.unrouteAll({ behavior: 'wait' });
 
     assert.deepEqual(errors, []);
     await endRuns();
