@@ -70,15 +70,32 @@ function hasVerticalCrossingLine(commands, Tp, ph) {
 test('template-runtime assembles real modular JS files cleanly, strips ESM syntax, and boots both zh and en IIFE bundles', async () => {
   assert.ok(RUNTIME_MODULE_FILES.length >= 6, 'runtime should be split across modular files');
 
-  for (const file of RUNTIME_MODULE_FILES) {
-    const src = await readFile(join(repoRoot, 'lib/companion-template/runtime', file), 'utf8');
-    assert.ok(src.length > 50, `module ${file} must contain real code`);
-  }
-
   const zhBundle = buildLessonTemplateRuntimeJs('zh');
   const enBundle = buildLessonTemplateRuntimeJs('en');
   assert.equal(zhBundle, LESSON_TEMPLATE_RUNTIME_JS, 'zh bundle matches exported LESSON_TEMPLATE_RUNTIME_JS');
   assert.ok(enBundle.length < LESSON_TEMPLATE_RUNTIME_JS.length, 'en bundle omits Chinese tables and is strictly shorter');
+
+  let zhResidual = zhBundle;
+  let enResidual = enBundle;
+  for (const file of RUNTIME_MODULE_FILES) {
+    const src = await readFile(join(repoRoot, 'lib/companion-template/runtime', file), 'utf8');
+    const stripped = src
+      .replace(/\r\n/g, '\n')
+      .replace(/^import\s+(?:[\s\S]*?)\s+from\s+['"][^'"]+['"];?\n?/gm, '')
+      .replace(/^export\s+(?=(?:async\s+)?function\b|const\b|let\b|var\b|class\b)/gm, '')
+      .trim();
+    assert.ok(stripped.length > 50, `module ${file} must contain real code`);
+    assert.equal(zhBundle.includes(stripped), true, `zh bundle must assemble current stripped source of runtime/${file}`);
+    zhResidual = zhResidual.replace(stripped, '');
+    if (file === 'i18n-zh.js') {
+      assert.equal(enBundle.includes(stripped), false, 'en bundle must omit runtime/i18n-zh.js');
+    } else {
+      assert.equal(enBundle.includes(stripped), true, `en bundle must assemble current stripped source of runtime/${file}`);
+      enResidual = enResidual.replace(stripped, '');
+    }
+  }
+  assert.ok(zhResidual.trim().length < 120, `zh bundle must only wrap ./runtime/*.js modules (residual ${zhResidual.trim().length} chars)`);
+  assert.ok(enResidual.trim().length < 200, `en bundle must only wrap ./runtime/*.js modules plus en stubs (residual ${enResidual.trim().length} chars)`);
 
   for (const [label, bundle] of [['zh', zhBundle], ['en', enBundle]]) {
     assert.doesNotThrow(() => new vm.Script(bundle), `${label} bundle must parse as valid JS`);
